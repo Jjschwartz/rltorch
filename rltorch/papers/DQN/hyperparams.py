@@ -7,7 +7,8 @@ FRAMES = 4
 STATE_DIMS = (FRAMES, WIDTH, HEIGHT)
 
 MINIBATCH_SIZE = 32
-REPLAY_SIZE = 1000000
+# REPLAY_SIZE = 1000000
+REPLAY_SIZE = 100000     # while testing due to memory limits
 # Number of most recent frames given as input to Q-network
 AGENT_HISTORY = 4
 TARGET_NETWORK_UPDATE_FREQ = 10000
@@ -30,7 +31,8 @@ INITIAL_EXPLORATION = 1.0
 FINAL_EXPLORATION = 0.1
 FINAL_EXPLORATION_FRAME = 1000000
 # Number of frames to run random policy and before learning starts
-REPLAY_START_SIZE = 50000
+# REPLAY_START_SIZE = 50000
+REPLAY_START_SIZE = 5000    # for testing
 # Max number of "do nothing" actions to be performed by agent at start of episode
 NO_OP_MAX = 30
 
@@ -44,3 +46,6 @@ OUTPUT = {"type": "fully_connected"}
 
 # for reward
 R_CLIP = [-1, 1]
+
+# training duration (50 million)
+TRAINING_FRAMES = 50000000

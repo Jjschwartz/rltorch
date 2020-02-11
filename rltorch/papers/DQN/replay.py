@@ -10,7 +10,7 @@ class ReplayMemory:
         self.next_s_buf = np.zeros((capacity, *s_dims), dtype=np.float32)
         self.r_buf = np.zeros(capacity, dtype=np.float32)
         self.done_buf = np.zeros(capacity, dtype=np.float32)
-        self.ptr, self.size = 0
+        self.ptr, self.size = 0, 0
 
     def store(self, s, a, next_s, r, done):
         self.s_buf[self.ptr] = s

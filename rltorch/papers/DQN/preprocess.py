@@ -36,11 +36,3 @@ class ImageProcessor:
         raw1.show("raw1")
         raw2.show("raw2")
         processed.show("processed")
-
-
-def clip_reward(r, r_neg=-1, r_pos=1):
-    if r == 0:
-        return r
-    if r < 0:
-        return max(r, r_neg)
-    return min(r, r_pos)

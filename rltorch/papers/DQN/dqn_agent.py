@@ -1,30 +1,37 @@
-import gym
 import random
 import numpy as np
+import torch.nn as nn
 import torch.optim as optim
+from gym.envs.atari import AtariEnv
 
 from .model import DQN
 from .replay import ReplayMemory
+from .preprocess import ImageProcessor
 import rltorch.papers.DQN.hyperparams as hp
-from .preprocess import ImageProcessor, clip_reward
 
 
 class DQNAgent:
 
-    def __init__(self, env_name):
-        self.env = gym.make(env_name)
+    def __init__(self, env_name, death_ends_episode=True):
+        self.env = AtariEnv(game=env_name, frameskip=1, obs_type="image")
         self.num_actions = self.env.action_space.n
-        self.dqn = DQN(self.num_actions)
-        self.target_dqn = DQN(self.num_actions)
         self.replay = ReplayMemory(hp.REPLAY_SIZE, hp.STATE_DIMS)
         self.img_processor = ImageProcessor(hp.HEIGHT, hp.WIDTH)
-        self.optimizer = optim.RMSprop(self.dqn.parameter(),
+
+        # Neural Network related attributes
+        self.dqn = DQN(self.num_actions)
+        self.target_dqn = DQN(self.num_actions)
+        self.update_target_net()
+        self.optimizer = optim.RMSprop(self.dqn.parameters(),
                                        lr=hp.LEARNING_RATE,
                                        momentum=hp.GRADIENT_MOMENTUM,
                                        eps=hp.MIN_SQUARED_GRADIENT)
+        self.loss_fn = nn.MSELoss()
 
+        # Training related attributes
         self.epsilon_schedule = np.linspace(hp.INITIAL_EXPLORATION, hp.FINAL_EXPLORATION,
                                             hp.FINAL_EXPLORATION_FRAME)
+        self.death_ends_episode = death_ends_episode
         self.steps_done = 0
 
     def get_action(self, x):
@@ -42,14 +49,93 @@ class DQNAgent:
 
     def optimize(self):
         if self.steps_done < hp.REPLAY_START_SIZE:
-            return
+            return 0
 
         batch = self.replay.sample_batch(hp.MINIBATCH_SIZE)
-        s, a, next_s, r, d = batch
+        s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
+
+        # get q_vals for each state and the action performed in that state
+        q_vals = self.dqn(s_batch).gather(1, a_batch)
+        # get target q val = max val of next state
+        target_q_val = self.target_dqn(next_s_batch).max(1)
+        # calculate update target
+        target = r_batch + hp.DISCOUNT*(1-d_batch)*target_q_val
+        # calculate mean square loss
+        loss = self.loss_fn(q_vals, target)
+        # optimize the model
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        loss_value = loss.item()
+        return loss_value
 
     def update_target_net(self):
         self.target_dqn.load_state_dict(self.dqn.state_dict())
 
     def train(self):
+        print("Starting training")
         self.steps_done = 0
-        s, r, d = self.env.reset(), 0, False
+
+        num_episodes = 0
+        episode_returns = []
+
+        while self.steps_done < hp.TRAINING_FRAMES:
+            ep_return, ep_loss = self.run_episode()
+            episode_returns.append(ep_return)
+            num_episodes += 1
+
+            if num_episodes % 1 == 0:
+                print(f"Episode {num_episodes}: return={ep_return:.4f} loss={ep_loss:.4f}"
+                      f"\t ({self.steps_done} / {hp.TRAINING_FRAMES} steps complete)")
+
+        print("Training complete")
+
+    def run_episode(self):
+        s = self.init_episode()
+        done = False
+        start_lives = self.env.ale.lives()
+
+        episode_return = 0
+        episode_loss = 0
+
+        while not done and self.steps_done < hp.TRAINING_FRAMES:
+            a = self.get_action(s)
+            next_s, r = self.step(a)
+
+            life_lost = self.env.ale.lives() < start_lives
+            if self.env.ale.game_over() or (self.death_ends_episode and life_lost):
+                done = True
+
+            self.replay.store(s, a, next_s, r, done)
+            s = next_s
+            episode_return += r
+            self.steps_done += 1
+
+            if self.steps_done % hp.NETWORK_UPDATE_FREQUENCY == 0:
+                episode_loss = self.optimize()
+
+            if self.steps_done % hp.TARGET_NETWORK_UPDATE_FREQ == 0:
+                self.update_target_net()
+
+        return episode_return, episode_loss
+
+    def step(self, a):
+        """Perform a step, repeating given action ACTION_REPEAT times, and
+        return processed image and reward """
+        reward = 0.0
+        img_buffer = []
+        for i in range(hp.ACTION_REPEAT):
+            s, r, d, info = self.env.step(a)
+            reward += np.clip(r, *hp.R_CLIP)
+            img_buffer.append(s)
+        return self.img_processor.process_frames(*img_buffer[:-2]), reward
+
+    def init_episode(self):
+        """Resets game, performs noops and returns first processed state """
+        self.env.reset()
+        num_noops = random.randint(0, hp.NO_OP_MAX)
+        for _ in range(num_noops):
+            self.env.step(0)
+        x, _ = self.step(0)
+        return x
