@@ -1,22 +1,34 @@
+import time
 import random
 import numpy as np
+import os.path as osp
+from gym.envs.atari import AtariEnv
+
+import torch
 import torch.nn as nn
 import torch.optim as optim
-from gym.envs.atari import AtariEnv
 
 from .model import DQN
 from .replay import ReplayMemory
-from .preprocess import ImageProcessor
+from .dqn_logger import DQNLogger, RESULTS_DIR
 import rltorch.papers.DQN.hyperparams as hp
+from .preprocess import ImageProcessor, ImageHistory
+
+# TODO Look into storing tensors rather than numpy, for efficieny and to save
+# repeated numpy -> tensor conversions. Maybe it's not a big deal.
 
 
 class DQNAgent:
 
     def __init__(self, env_name, death_ends_episode=True):
+        self.env_name = env_name
         self.env = AtariEnv(game=env_name, frameskip=1, obs_type="image")
         self.num_actions = self.env.action_space.n
         self.replay = ReplayMemory(hp.REPLAY_SIZE, hp.STATE_DIMS)
         self.img_processor = ImageProcessor(hp.HEIGHT, hp.WIDTH)
+        self.img_buffer = ImageHistory(hp.AGENT_HISTORY, (hp.HEIGHT, hp.WIDTH))
+        self.logger = DQNLogger(env_name)
+        self.setup_logger()
 
         # Neural Network related attributes
         self.dqn = DQN(self.num_actions)
@@ -33,6 +45,17 @@ class DQNAgent:
                                             hp.FINAL_EXPLORATION_FRAME)
         self.death_ends_episode = death_ends_episode
         self.steps_done = 0
+
+    def setup_logger(self):
+        # adds headers of interest
+        self.logger.add_header("episode")
+        self.logger.add_header("steps_done")
+        self.logger.add_header("episode_return")
+        self.logger.add_header("episode_loss")
+
+    def get_model_save_path(self):
+        ts = time.strftime("%Y%m%d-%H%M")
+        return osp.join(RESULTS_DIR, f"{self.env_name}_{ts}.pth")
 
     def get_action(self, x):
         if self.steps_done < hp.REPLAY_START_SIZE:
@@ -55,11 +78,18 @@ class DQNAgent:
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
 
         # get q_vals for each state and the action performed in that state
-        q_vals = self.dqn(s_batch).gather(1, a_batch)
+        q_vals_raw = self.dqn(s_batch)
+        a_batch_tensor = torch.from_numpy(a_batch.reshape(32, 1))
+        q_vals = q_vals_raw.gather(1, a_batch_tensor).squeeze()
+
         # get target q val = max val of next state
-        target_q_val = self.target_dqn(next_s_batch).max(1)
+        _, target_q_val = self.target_dqn(next_s_batch).max(1)
+
+        r_batch_tensor = torch.from_numpy(r_batch)
+        d_batch_tensor = torch.from_numpy((1-d_batch))
+
         # calculate update target
-        target = r_batch + hp.DISCOUNT*(1-d_batch)*target_q_val
+        target = r_batch_tensor + hp.DISCOUNT*d_batch_tensor*target_q_val
         # calculate mean square loss
         loss = self.loss_fn(q_vals, target)
         # optimize the model
@@ -89,6 +119,12 @@ class DQNAgent:
                 print(f"Episode {num_episodes}: return={ep_return:.4f} loss={ep_loss:.4f}"
                       f"\t ({self.steps_done} / {hp.TRAINING_FRAMES} steps complete)")
 
+            self.logger.log("episode", num_episodes)
+            self.logger.log("steps_done", self.steps_done)
+            self.logger.log("episode_return", ep_return)
+            self.logger.log("episode_loss", ep_loss)
+            self.logger.flush()
+
         print("Training complete")
 
     def run_episode(self):
@@ -100,14 +136,17 @@ class DQNAgent:
         episode_loss = 0
 
         while not done and self.steps_done < hp.TRAINING_FRAMES:
-            a = self.get_action(s)
+            self.img_buffer.push(s)
+            x = self.img_buffer.get()
+            a = self.get_action(x)
             next_s, r = self.step(a)
 
             life_lost = self.env.ale.lives() < start_lives
             if self.env.ale.game_over() or (self.death_ends_episode and life_lost):
                 done = True
 
-            self.replay.store(s, a, next_s, r, done)
+            clipped_r = np.clip(r, *hp.R_CLIP)
+            self.replay.store(s, a, next_s, clipped_r, done)
             s = next_s
             episode_return += r
             self.steps_done += 1
@@ -118,6 +157,10 @@ class DQNAgent:
             if self.steps_done % hp.TARGET_NETWORK_UPDATE_FREQ == 0:
                 self.update_target_net()
 
+            if self.steps_done % hp.MODEL_SAVE_FREQ == 0:
+                save_path = self.get_model_save_path()
+                self.dqn.save_DQN(save_path)
+
         return episode_return, episode_loss
 
     def step(self, a):
@@ -127,15 +170,20 @@ class DQNAgent:
         img_buffer = []
         for i in range(hp.ACTION_REPEAT):
             s, r, d, info = self.env.step(a)
-            reward += np.clip(r, *hp.R_CLIP)
+            reward += r
             img_buffer.append(s)
-        return self.img_processor.process_frames(*img_buffer[:-2]), reward
+        x = self.img_processor.process_frames(*img_buffer[:-2])
+        return x, reward
 
     def init_episode(self):
         """Resets game, performs noops and returns first processed state """
         self.env.reset()
+        self.img_buffer.clear()
         num_noops = random.randint(0, hp.NO_OP_MAX)
         for _ in range(num_noops):
             self.env.step(0)
-        x, _ = self.step(0)
+        # ensure history buffer is full
+        for _ in range(hp.AGENT_HISTORY):
+            x, _ = self.step(0)
+            self.img_buffer.push(x)
         return x

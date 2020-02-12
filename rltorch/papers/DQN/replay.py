@@ -6,7 +6,7 @@ class ReplayMemory:
     def __init__(self, capacity, s_dims):
         self.capacity = capacity
         self.s_buf = np.zeros((capacity, *s_dims), dtype=np.float32)
-        self.a_buf = np.zeros(capacity, dtype=np.float32)
+        self.a_buf = np.zeros(capacity, dtype=np.long)
         self.next_s_buf = np.zeros((capacity, *s_dims), dtype=np.float32)
         self.r_buf = np.zeros(capacity, dtype=np.float32)
         self.done_buf = np.zeros(capacity, dtype=np.float32)

@@ -36,3 +36,28 @@ class ImageProcessor:
         raw1.show("raw1")
         raw2.show("raw2")
         processed.show("processed")
+
+
+class ImageHistory:
+
+    def __init__(self, history_length, img_dims):
+        self.length = history_length
+        self.img_dims = img_dims
+        self.history = np.empty((history_length, *img_dims), dtype=np.float32)
+        self.size, self.ptr = 0, 0
+
+    def push(self, x):
+        self.history[self.ptr] = x
+        self.ptr = (self.ptr + 1) % self.length
+        self.size = min(self.size+1, self.length)
+
+    def get(self):
+        assert self.size == self.length
+        # must add 1 for N dim for DQN
+        history_buffer = np.empty((1, self.length, *self.img_dims), dtype=np.float32)
+        history_buffer[0][:self.length-self.ptr] = self.history[self.ptr:]
+        history_buffer[0][self.length-self.ptr:] = self.history[:self.ptr]
+        return history_buffer
+
+    def clear(self):
+        self.size, self.ptr = 0, 0

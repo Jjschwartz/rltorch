@@ -20,6 +20,7 @@ class DQN(nn.Module):
         self.out = nn.Linear(512, num_actions)
 
     def forward(self, x):
+        x = torch.tensor(x)
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
