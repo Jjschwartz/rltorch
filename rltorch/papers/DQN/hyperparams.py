@@ -9,7 +9,7 @@ STATE_DIMS = (FRAMES, WIDTH, HEIGHT)
 DISCOUNT = 0.99
 MINIBATCH_SIZE = 32
 # REPLAY_SIZE = 1000000
-REPLAY_SIZE = 40000     # while testing due to memory limits on laptop
+REPLAY_SIZE = 45000     # while testing due to memory limits on laptop
 # Number of most recent frames given as input to Q-network
 AGENT_HISTORY = 4
 # Number of steps between target network updates
@@ -48,10 +48,13 @@ OUTPUT = {"type": "fully_connected"}
 # for reward
 R_CLIP = [-1, 1]
 
+# gradient clip
+GRAD_CLIP = [-1, 1]
+
 # training duration (50 million)
 # TRAINING_FRAMES = 50000000
 TRAINING_FRAMES = 50000000
 
 # Other hyperparams not related to paper
 # Model Save Freq
-MODEL_SAVE_FREQ = 100000
+MODEL_SAVE_FREQ = 1000000

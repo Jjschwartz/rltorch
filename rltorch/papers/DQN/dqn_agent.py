@@ -1,7 +1,5 @@
-import time
 import random
 import numpy as np
-import os.path as osp
 from gym.envs.atari import AtariEnv
 
 import torch
@@ -10,8 +8,8 @@ import torch.optim as optim
 
 from .model import DQN
 from .replay import ReplayMemory
-from .dqn_logger import DQNLogger, RESULTS_DIR
 import rltorch.papers.DQN.hyperparams as hp
+from rltorch.utils.rl_logger import RLLogger
 from .preprocess import ImageProcessor, ImageHistory
 
 # TODO Look into storing tensors rather than numpy, for efficieny and to save
@@ -27,16 +25,15 @@ class DQNAgent:
         self.replay = ReplayMemory(hp.REPLAY_SIZE, hp.STATE_DIMS)
         self.img_processor = ImageProcessor(hp.HEIGHT, hp.WIDTH)
         self.img_buffer = ImageHistory(hp.AGENT_HISTORY, (hp.HEIGHT, hp.WIDTH))
-        self.logger = DQNLogger(env_name)
+        self.logger = RLLogger(env_name, "dqn_atari")
         self.setup_logger()
 
         # Neural Network related attributes
         self.dqn = DQN(self.num_actions)
         self.target_dqn = DQN(self.num_actions)
-        self.update_target_net()
         self.optimizer = optim.RMSprop(self.dqn.parameters(),
                                        lr=hp.LEARNING_RATE,
-                                       momentum=hp.GRADIENT_MOMENTUM,
+                                       alpha=hp.GRADIENT_MOMENTUM,
                                        eps=hp.MIN_SQUARED_GRADIENT)
         self.loss_fn = nn.MSELoss()
 
@@ -52,10 +49,6 @@ class DQNAgent:
         self.logger.add_header("steps_done")
         self.logger.add_header("episode_return")
         self.logger.add_header("episode_loss")
-
-    def get_model_save_path(self):
-        ts = time.strftime("%Y%m%d-%H%M")
-        return osp.join(RESULTS_DIR, f"{self.env_name}_{ts}.pth")
 
     def get_action(self, x):
         if self.steps_done < hp.REPLAY_START_SIZE:
@@ -79,11 +72,11 @@ class DQNAgent:
 
         # get q_vals for each state and the action performed in that state
         q_vals_raw = self.dqn(s_batch)
-        a_batch_tensor = torch.from_numpy(a_batch.reshape(32, 1))
+        a_batch_tensor = torch.from_numpy(a_batch.reshape(hp.MINIBATCH_SIZE, 1))
         q_vals = q_vals_raw.gather(1, a_batch_tensor).squeeze()
 
         # get target q val = max val of next state
-        _, target_q_val = self.target_dqn(next_s_batch).max(1)
+        target_q_val, _ = self.target_dqn(next_s_batch).max(1)
 
         r_batch_tensor = torch.from_numpy(r_batch)
         d_batch_tensor = torch.from_numpy((1-d_batch))
@@ -95,6 +88,9 @@ class DQNAgent:
         # optimize the model
         self.optimizer.zero_grad()
         loss.backward()
+        for param in self.dqn.parameters():
+            # clip squared gradient
+            param.grad.data.clamp_(*hp.GRAD_CLIP)
         self.optimizer.step()
 
         loss_value = loss.item()
@@ -115,7 +111,7 @@ class DQNAgent:
             episode_returns.append(ep_return)
             num_episodes += 1
 
-            if num_episodes % 1 == 0:
+            if num_episodes % 10 == 0:
                 print(f"Episode {num_episodes}: return={ep_return:.4f} loss={ep_loss:.4f}"
                       f"\t ({self.steps_done} / {hp.TRAINING_FRAMES} steps complete)")
 
@@ -158,7 +154,7 @@ class DQNAgent:
                 self.update_target_net()
 
             if self.steps_done % hp.MODEL_SAVE_FREQ == 0:
-                save_path = self.get_model_save_path()
+                save_path = self.logger.get_save_path(".pth")
                 self.dqn.save_DQN(save_path)
 
         return episode_return, episode_loss
