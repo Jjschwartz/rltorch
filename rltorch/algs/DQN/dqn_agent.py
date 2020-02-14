@@ -26,7 +26,13 @@ class DQNAgent:
         # Neural Network related attributes
         self.dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions)
         self.target_dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions)
-        # self.update_target_net()
+
+        if torch.cuda.is_available():
+            print("Using Cuda")
+            self.dqn.cuda()
+            self.target_dqn.cuda()
+        else:
+            print("using cpu")
 
         print(self.dqn)
 
@@ -74,17 +80,24 @@ class DQNAgent:
         batch = self.replay.sample_batch(self.batch_size)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
 
-        # get q_vals for each state and the action performed in that state
-        q_vals_raw = self.dqn(torch.from_numpy(s_batch))
+        # convert numpy to tensors
+        s_batch_tensor = torch.from_numpy(s_batch)
         a_batch_tensor = torch.from_numpy(a_batch.reshape(self.batch_size, 1))
+        next_s_batch_tensor = torch.from_numpy(next_s_batch)
+        r_batch_tensor = torch.from_numpy(r_batch)
+        d_batch_tensor = torch.from_numpy((1-d_batch))
+
+        if torch.cuda.is_available():
+            s_batch_tensor.cuda()
+            next_s_batch_tensor.cuda()
+
+        # get q_vals for each state and the action performed in that state
+        q_vals_raw = self.dqn(s_batch_tensor)
         q_vals = q_vals_raw.gather(1, a_batch_tensor).squeeze()
 
         # get target q val = max val of next state
-        target_q_val_raw = self.target_dqn(torch.from_numpy(next_s_batch))
+        target_q_val_raw = self.target_dqn(next_s_batch_tensor)
         target_q_val, _ = target_q_val_raw.max(1)
-
-        r_batch_tensor = torch.from_numpy(r_batch)
-        d_batch_tensor = torch.from_numpy((1-d_batch))
 
         # calculate update target
         target = r_batch_tensor + self.discount*d_batch_tensor*target_q_val
