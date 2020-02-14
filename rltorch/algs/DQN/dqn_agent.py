@@ -66,6 +66,7 @@ class DQNAgent:
             epsilon = self.final_epsilon
 
         if random.random() > epsilon:
+            x = torch.from_numpy(x).float().to(self.device)
             return self.dqn.get_action(x)
         return random.randint(0, self.num_actions-1)
 

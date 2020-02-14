@@ -27,5 +27,4 @@ class DQN(nn.Module):
 
     def get_action(self, x):
         with torch.no_grad():
-            x = torch.from_numpy(x).float()
             return self.forward(x).argmax().view(1, 1).item()
