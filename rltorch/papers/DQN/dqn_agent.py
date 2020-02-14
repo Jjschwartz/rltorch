@@ -28,9 +28,12 @@ class DQNAgent:
         self.logger = RLLogger(env_name, "dqn_atari")
         self.setup_logger()
 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device={self.device}")
+
         # Neural Network related attributes
-        self.dqn = DQN(self.num_actions)
-        self.target_dqn = DQN(self.num_actions)
+        self.dqn = DQN(self.num_actions).to(self.device)
+        self.target_dqn = DQN(self.num_actions).to(self.device)
         self.optimizer = optim.RMSprop(self.dqn.parameters(),
                                        lr=hp.LEARNING_RATE,
                                        alpha=hp.GRADIENT_MOMENTUM,
@@ -60,6 +63,7 @@ class DQNAgent:
             epsilon = hp.FINAL_EXPLORATION
 
         if random.random() > epsilon:
+            x = torch.from_numpy(x).to(self.device)
             return self.dqn.get_action(x)
         return random.randint(0, self.num_actions-1)
 
@@ -70,16 +74,18 @@ class DQNAgent:
         batch = self.replay.sample_batch(hp.MINIBATCH_SIZE)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
 
+        s_batch_tensor = torch.from_numpy(s_batch).to(self.device)
+        next_s_batch_tensor = torch.from_numpy(next_s_batch).to(self.device)
+        a_batch_tensor = torch.from_numpy(a_batch.reshape(hp.MINIBATCH_SIZE, 1)).to(self.device)
+        r_batch_tensor = torch.from_numpy(r_batch).to(self.device)
+        d_batch_tensor = torch.from_numpy((1-d_batch)).to(self.device)
+
         # get q_vals for each state and the action performed in that state
-        q_vals_raw = self.dqn(s_batch)
-        a_batch_tensor = torch.from_numpy(a_batch.reshape(hp.MINIBATCH_SIZE, 1))
+        q_vals_raw = self.dqn(s_batch_tensor)
         q_vals = q_vals_raw.gather(1, a_batch_tensor).squeeze()
 
         # get target q val = max val of next state
-        target_q_val, _ = self.target_dqn(next_s_batch).max(1)
-
-        r_batch_tensor = torch.from_numpy(r_batch)
-        d_batch_tensor = torch.from_numpy((1-d_batch))
+        target_q_val, _ = self.target_dqn(next_s_batch_tensor).max(1)
 
         # calculate update target
         target = r_batch_tensor + hp.DISCOUNT*d_batch_tensor*target_q_val
