@@ -23,16 +23,12 @@ class DQNAgent:
         self.logger = RLLogger(self.env_name, "dqn")
         self.setup_logger()
 
-        # Neural Network related attributes
-        self.dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions)
-        self.target_dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device={self.device}")
 
-        if torch.cuda.is_available():
-            print("Using Cuda")
-            self.dqn.cuda()
-            self.target_dqn.cuda()
-        else:
-            print("using cpu")
+        # Neural Network related attributes
+        self.dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions).to(self.device)
+        self.target_dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions).to(self.device)
 
         print(self.dqn)
 
@@ -81,15 +77,11 @@ class DQNAgent:
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
 
         # convert numpy to tensors
-        s_batch_tensor = torch.from_numpy(s_batch)
-        a_batch_tensor = torch.from_numpy(a_batch.reshape(self.batch_size, 1))
-        next_s_batch_tensor = torch.from_numpy(next_s_batch)
-        r_batch_tensor = torch.from_numpy(r_batch)
-        d_batch_tensor = torch.from_numpy((1-d_batch))
-
-        if torch.cuda.is_available():
-            s_batch_tensor.cuda()
-            next_s_batch_tensor.cuda()
+        s_batch_tensor = torch.from_numpy(s_batch).to(self.device)
+        a_batch_tensor = torch.from_numpy(a_batch.reshape(self.batch_size, 1)).to(self.device)
+        next_s_batch_tensor = torch.from_numpy(next_s_batch).to(self.device)
+        r_batch_tensor = torch.from_numpy(r_batch).to(self.device)
+        d_batch_tensor = torch.from_numpy((1-d_batch)).to(self.device)
 
         # get q_vals for each state and the action performed in that state
         q_vals_raw = self.dqn(s_batch_tensor)
