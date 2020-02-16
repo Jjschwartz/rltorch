@@ -1,6 +1,8 @@
 import gym
 import random
 import numpy as np
+from pprint import pprint
+
 
 import torch
 import torch.nn as nn
@@ -14,17 +16,20 @@ from rltorch.utils.rl_logger import RLLogger
 class DQNAgent:
 
     def __init__(self, **kwargs):
+        print("\nDQN with config:")
+        pprint(kwargs)
+
         self.env_name = kwargs["env_name"]
         self.env = gym.make(self.env_name)
         self.num_actions = self.env.action_space.n
         self.obs_dim = self.env.observation_space.shape
 
-        self.replay = ReplayMemory(kwargs["replay_size"], self.obs_dim)
-        self.logger = RLLogger(self.env_name, "dqn")
-        self.setup_logger()
-
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device={self.device}")
+
+        self.replay = ReplayMemory(kwargs["replay_size"], self.obs_dim, self.device)
+        self.logger = RLLogger(self.env_name, "dqn")
+        self.setup_logger()
 
         # Neural Network related attributes
         self.dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions).to(self.device)
@@ -77,23 +82,16 @@ class DQNAgent:
         batch = self.replay.sample_batch(self.batch_size)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
 
-        # convert numpy to tensors
-        s_batch_tensor = torch.from_numpy(s_batch).to(self.device)
-        a_batch_tensor = torch.from_numpy(a_batch.reshape(self.batch_size, 1)).to(self.device)
-        next_s_batch_tensor = torch.from_numpy(next_s_batch).to(self.device)
-        r_batch_tensor = torch.from_numpy(r_batch).to(self.device)
-        d_batch_tensor = torch.from_numpy((1-d_batch)).to(self.device)
-
         # get q_vals for each state and the action performed in that state
-        q_vals_raw = self.dqn(s_batch_tensor)
-        q_vals = q_vals_raw.gather(1, a_batch_tensor).squeeze()
+        q_vals_raw = self.dqn(s_batch)
+        q_vals = q_vals_raw.gather(1, a_batch).squeeze()
 
         # get target q val = max val of next state
-        target_q_val_raw = self.target_dqn(next_s_batch_tensor)
-        target_q_val, _ = target_q_val_raw.max(1)
-
-        # calculate update target
-        target = r_batch_tensor + self.discount*d_batch_tensor*target_q_val
+        with torch.no_grad():
+            target_q_val_raw = self.target_dqn(next_s_batch)
+            target_q_val, _ = target_q_val_raw.max(1)
+            # calculate update target
+            target = r_batch + self.discount*(1-d_batch)*target_q_val
 
         # calculate mean square loss
         loss = self.loss_fn(q_vals, target)
@@ -105,7 +103,6 @@ class DQNAgent:
             # clip squared gradient
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
-
         loss_value = loss.item()
         return loss_value
 

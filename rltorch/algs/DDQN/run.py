@@ -1,4 +1,4 @@
-from rltorch.algs.DQN.agent import DQNAgent
+from rltorch.algs.DDQN.agent import DDQNAgent
 
 
 if __name__ == "__main__":
@@ -22,5 +22,5 @@ if __name__ == "__main__":
     parser.add_argument("--exp_name", type=str, default=None)
     args = parser.parse_args()
 
-    agent = DQNAgent(**vars(args))
+    agent = DDQNAgent(**vars(args))
     agent.train()
