@@ -13,7 +13,8 @@ setup(name="rltorch",
           'Pillow',
           'matplotlib',
           'torch>=1.4.0',
-          'torchvision'
+          'torchvision',
+          'prettytable'
       ],
       description="Deep RL algorithm implementations using pytorch.",
       author="Jonathon Schwartz",

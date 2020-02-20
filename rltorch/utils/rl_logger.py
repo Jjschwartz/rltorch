@@ -1,5 +1,6 @@
 import time
 import os.path as osp
+from prettytable import PrettyTable
 
 from rltorch.user_config import DEFAULT_DATA_DIR
 
@@ -32,7 +33,10 @@ class RLLogger:
         assert header in self.headers, "Cannot log value of new header, use add_header first."
         self.log_buffer[header] = value
 
-    def flush(self):
+    def flush(self, display=False):
+        if display:
+            self.display()
+
         save_file = open(self.save_file_path, "a+")
         if not self.headers_written:
             save_file.write("\t".join(self.headers) + "\n")
@@ -44,3 +48,14 @@ class RLLogger:
 
         save_file.write("\t".join(row) + "\n")
         save_file.close()
+
+    def display(self):
+        table = PrettyTable()
+        table.field_name = ["Metric", "Value"]
+        for header in self.headers:
+            val = self.log_buffer[header]
+            val = f"{val:.4f}" if isinstance(val, float) else str(val)
+            table.add_row([header, val])
+        print()
+        print(table)
+        print()
