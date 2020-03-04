@@ -43,8 +43,8 @@ class PPOLSTMAgent:
         self.train_critic_iters = kwargs["train_critic_iters"]
         self.model_save_freq = kwargs["model_save_freq"]
 
-        self.buffer = PPOBuffer(self.steps_per_epoch, self.obs_dim, kwargs["gamma"],
-                                kwargs["lam"], self.device)
+        self.buffer = PPOBuffer(self.steps_per_epoch, self.obs_dim, kwargs["hidden_size"],
+                                kwargs["gamma"], kwargs["lam"], self.device)
         self.actor_critic = PPOLSTMActorCritic(self.obs_dim[0], kwargs["hidden_size"], self.num_actions)
         self.actor_critic.to(self.device)
 
@@ -74,13 +74,13 @@ class PPOLSTMAgent:
         self.logger.add_header("entropy")
         self.logger.add_header("time")
 
-    def get_action(self, obs):
-        return self.actor_critic.act(obs)
+    def get_action(self, obs, hid):
+        return self.actor_critic.act(obs, hid)
 
     def compute_actor_loss(self, data):
         obs, act, adv, logp_old = data["obs"], data["act"], data["adv"], data["logp"]
-        ep_lens = data["ep_lens"]
-        pi, logp = self.actor_critic.actor.step_batch(obs, act, ep_lens)
+        hid = data["actor_hid"]
+        pi, logp, _ = self.actor_critic.actor.step(obs, act, hid)
         ratio = torch.exp(logp - logp_old)
         clipped_ratio = torch.clamp(ratio, 1-self.clip_ratio, 1+self.clip_ratio)
         clip_adv = clipped_ratio * adv
@@ -92,8 +92,8 @@ class PPOLSTMAgent:
         return actor_loss, actor_loss_info
 
     def compute_critic_loss(self, data):
-        obs, ret, ep_lens = data["obs"], data["ret"], data["ep_lens"]
-        predicted_val = self.actor_critic.critic.step_batch(obs, len(ret), ep_lens)
+        obs, ret, hid = data["obs"], data["ret"], data["critic_hid"]
+        predicted_val, _ = self.actor_critic.critic.forward(obs, hid)
         return self.critic_loss_fn(predicted_val, ret)
 
     def optimize(self):
@@ -128,11 +128,11 @@ class PPOLSTMAgent:
         self.logger.log("kl", actor_loss_info_start["kl"])
         self.logger.log("entropy", actor_loss_info_start["entropy"])
 
-    def step(self, obs):
-        return self.actor_critic.step(self.process_single_obs(obs))
+    def step(self, obs, actor_hid, critic_hid):
+        return self.actor_critic.step(self.process_single_obs(obs), actor_hid, critic_hid)
 
-    def get_value(self, obs):
-        return self.actor_critic.get_value(self.process_single_obs(obs))
+    def get_value(self, obs, critic_hid):
+        return self.actor_critic.get_value(self.process_single_obs(obs), critic_hid)
 
     def process_single_obs(self, obs):
         proc_obs = torch.from_numpy(obs).float().to(self.device)
@@ -153,22 +153,28 @@ class PPOLSTMAgent:
             ep_ret, ep_len = 0, 0
             epoch_vals = []
 
+            actor_hid, critic_hid = self.actor_critic.get_init_hidden()
+
             for t in range(self.steps_per_epoch):
-                a, v, logp = self.step(o)
+                a, v, logp, next_actor_hid, next_critic_hid = self.step(o, actor_hid, critic_hid)
                 next_o, r, d, _ = self.env.step(a.squeeze())
 
                 ep_len += 1
                 ep_ret += r
                 epoch_vals.append(v)
-                self.buffer.store(o, a, r, v, logp)
+                self.buffer.store(o, a, r, v, logp, actor_hid, critic_hid)
                 o = next_o
+                actor_hid = next_actor_hid
+                critic_hid = next_critic_hid
 
                 timeout = ep_len == self.max_ep_len
                 terminal = timeout or d
                 epoch_ended = t == self.steps_per_epoch-1
 
                 if terminal or epoch_ended:
-                    v = self.get_value(o) if timeout or epoch_ended else 0
+                    v = 0
+                    if timeout or epoch_ended:
+                        v, next_critic_hid = self.get_value(o, critic_hid)
                     self.buffer.finish_path(v)
 
                 if terminal:
@@ -176,11 +182,10 @@ class PPOLSTMAgent:
                     epoch_ep_lens.append(ep_len)
                     ep_ret, ep_len = 0, 0
                     o = self.env.reset()
-                    self.actor_critic.reset()
+                    actor_hid, critic_hid = self.actor_critic.get_init_hidden()
 
             # update the model
             self.optimize()
-            self.actor_critic.reset()
 
             # save model
             if (epoch+1) % self.model_save_freq == 0:

@@ -10,7 +10,7 @@ def discount_cumsum(x, discount):
 
 class PPOBuffer:
 
-    def __init__(self, capacity, obs_dim, gamma=0.99, lam=0.95, device="cpu"):
+    def __init__(self, capacity, obs_dim, hid_size, gamma=0.99, lam=0.95, device="cpu"):
         self.capacity = capacity
         self.device = device
         self.o_buf = np.zeros((capacity, *obs_dim), dtype=np.float32)
@@ -20,19 +20,25 @@ class PPOBuffer:
         self.ret_buf = np.zeros(capacity, dtype=np.float32)
         self.val_buf = np.zeros(capacity, dtype=np.float32)
         self.logp_buf = np.zeros(capacity, dtype=np.float32)
+        self.actor_hx_buf = np.zeros((capacity, hid_size), dtype=np.float32)
+        self.actor_cx_buf = np.zeros((capacity, hid_size), dtype=np.float32)
+        self.critic_hx_buf = np.zeros((capacity, hid_size), dtype=np.float32)
+        self.critic_cx_buf = np.zeros((capacity, hid_size), dtype=np.float32)
         self.gamma = gamma
         self.lam = lam
         self.ptr, self.path_start_idx = 0, 0
-        self.ep_ptrs = [0]
-        self.max_ep_len = 0
 
-    def store(self, o, a, r, v, logp):
+    def store(self, o, a, r, v, logp, actor_hid, critic_hid):
         assert self.ptr < self.capacity
         self.o_buf[self.ptr] = o
         self.a_buf[self.ptr] = a
         self.rew_buf[self.ptr] = r
         self.val_buf[self.ptr] = v
         self.logp_buf[self.ptr] = logp
+        self.actor_hx_buf[self.ptr] = actor_hid[0].numpy()
+        self.actor_cx_buf[self.ptr] = actor_hid[1].numpy()
+        self.critic_hx_buf[self.ptr] = critic_hid[0].numpy()
+        self.critic_cx_buf[self.ptr] = critic_hid[1].numpy()
         self.ptr += 1
 
     def finish_path(self, last_val=0):
@@ -47,10 +53,7 @@ class PPOBuffer:
 
         # Reward-to-go targets
         self.ret_buf[path_slice] = discount_cumsum(rews, self.gamma)[:-1]
-
-        self.max_ep_len = max(self.max_ep_len, self.ptr - self.path_start_idx)
         self.path_start_idx = self.ptr
-        self.ep_ptrs.append(self.ptr)
 
     def get(self):
         """Get all trajectories currently stored"""
@@ -60,33 +63,21 @@ class PPOBuffer:
         # normalize advantage
         norm_adv = (self.adv_buf - np.mean(self.adv_buf)) / np.std(self.adv_buf)
 
-        # convert batch of observatsions into a list of episodes
-        # i.e. one list of observations for each episode
-        ep_obs = []
-        ep_lengths = []
-        for i in range(len(self.ep_ptrs)-1):
-            ep_lengths.append(self.ep_ptrs[i+1] - self.ep_ptrs[i])
-            o = self.o_buf[self.ep_ptrs[i]:self.ep_ptrs[i+1]]
-            ep_obs.append(torch.from_numpy(o).to(self.device))
-        # pack the list of episode obs
-        # (i.e. list of tensor arrays, where each array contains observations for an episode)
-        # into multi-dimension tensor where each episode tensor is packed with 0
-        # up to the length of the longest episode
-        obs_batch = torch.nn.utils.rnn.pack_sequence(ep_obs, enforce_sorted=False)
-
+        obs_batch = torch.from_numpy(self.o_buf).to(self.device).unsqueeze(0)
         act_batch = torch.from_numpy(self.a_buf).to(self.device)
         ret_batch = torch.from_numpy(self.ret_buf).to(self.device)
         adv_batch = torch.from_numpy(norm_adv).to(self.device)
         logp_batch = torch.from_numpy(self.logp_buf).to(self.device)
-        ep_lengths = torch.from_numpy(np.array(ep_lengths, dtype=np.int64))
+        actor_hid_batch = (torch.from_numpy(self.actor_hx_buf).to(self.device).unsqueeze(0),
+                           torch.from_numpy(self.actor_cx_buf).to(self.device).unsqueeze(0))
+        critic_hid_batch = (torch.from_numpy(self.critic_hx_buf).to(self.device).unsqueeze(0),
+                            torch.from_numpy(self.critic_cx_buf).to(self.device).unsqueeze(0))
 
-        data = dict(ep_lens=ep_lengths,
-                    obs=obs_batch,
+        data = dict(obs=obs_batch,
                     act=act_batch,
                     ret=ret_batch,
                     adv=adv_batch,
-                    logp=logp_batch)
-
-        self.ep_ptrs = [0]
-        self.max_ep_len = 0
+                    logp=logp_batch,
+                    actor_hid=actor_hid_batch,
+                    critic_hid=critic_hid_batch)
         return data
