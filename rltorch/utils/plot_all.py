@@ -48,7 +48,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("file_path", type=str)
-    parser.add_argument("--x_key", type=str, default="episode")
+    parser.add_argument("--x_key", type=str, default="epoch")
     parser.add_argument("--smooth", type=int, default=10)
     args = parser.parse_args()
 
