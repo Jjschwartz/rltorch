@@ -81,6 +81,7 @@ class PPOLSTMAgent:
         obs, act, adv, logp_old = data["obs"], data["act"], data["adv"], data["logp"]
         hid = data["actor_hid"]
         pi, logp, _ = self.actor_critic.actor.step(obs, act, hid)
+        logp = logp.squeeze()
         ratio = torch.exp(logp - logp_old)
         clipped_ratio = torch.clamp(ratio, 1-self.clip_ratio, 1+self.clip_ratio)
         clip_adv = clipped_ratio * adv
@@ -94,6 +95,7 @@ class PPOLSTMAgent:
     def compute_critic_loss(self, data):
         obs, ret, hid = data["obs"], data["ret"], data["critic_hid"]
         predicted_val, _ = self.actor_critic.critic.forward(obs, hid)
+        predicted_val = predicted_val.squeeze()
         return self.critic_loss_fn(predicted_val, ret)
 
     def optimize(self):
