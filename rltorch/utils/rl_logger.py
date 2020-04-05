@@ -2,7 +2,14 @@ import time
 import os.path as osp
 from prettytable import PrettyTable
 
+import rltorch.utils.file_utils as fu
 from rltorch.user_config import DEFAULT_DATA_DIR
+
+
+RESULTS_FILE_NAME = "results"
+RESULTS_FILE_EXT = ".tsv"
+CONFIG_FILE_NAME = "config"
+CONFIG_FILE_EXT = ".yaml"
 
 
 class RLLogger:
@@ -16,21 +23,31 @@ class RLLogger:
         self.headers_written = False
 
     def setup_save_file(self):
-        self.save_file_path = self.get_save_path("tsv")
-
-    def get_save_path(self, ext=None):
         ts = time.strftime("%Y%m%d-%H%M")
-        save_file_path = osp.join(DEFAULT_DATA_DIR, f"{self.alg}_{self.env_name}_{ts}")
-        if ext:
-            save_file_path += f".{ext}"
-        return save_file_path
+        self.save_dir = osp.join(DEFAULT_DATA_DIR,
+                                 f"{self.alg}_{self.env_name}_{ts}")
+        fu.make_dir(self.save_dir)
+        self.save_file_path = fu.generate_file_path(self.save_dir,
+                                                    RESULTS_FILE_NAME,
+                                                    RESULTS_FILE_EXT)
+
+    def get_save_path(self, filename=None, ext=None):
+        if filename is None:
+            ts = time.strftime("%Y%m%d-%H%M")
+            filename = f"{self.alg}_{self.env_name}_{ts}"
+        return fu.generate_file_path(self.save_dir, filename, ext)
+
+    def save_config(self, cfg):
+        cfg_file = self.get_save_path(CONFIG_FILE_NAME, CONFIG_FILE_EXT)
+        fu.write_yaml(cfg_file, cfg)
 
     def add_header(self, header):
         assert header not in self.headers
         self.headers.append(header)
 
     def log(self, header, value):
-        assert header in self.headers, "Cannot log value of new header, use add_header first."
+        assert header in self.headers, \
+            "Cannot log value of new header, use add_header first."
         self.log_buffer[header] = value
 
     def flush(self, display=False):

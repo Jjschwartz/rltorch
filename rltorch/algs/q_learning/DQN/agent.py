@@ -1,4 +1,5 @@
 import gym
+import time
 import random
 import numpy as np
 from pprint import pprint
@@ -19,32 +20,49 @@ class DQNAgent:
         print("\nDQN with config:")
         pprint(kwargs)
 
+        self.seed = kwargs["seed"]
+        if self.seed is not None:
+            torch.manual_seed(self.seed)
+            np.random.seed(self.seed)
+
         self.env_name = kwargs["env_name"]
         self.env = gym.make(self.env_name)
         self.num_actions = self.env.action_space.n
         self.obs_dim = self.env.observation_space.shape
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda"
+                                   if torch.cuda.is_available()
+                                   else "cpu")
         print(f"Using device={self.device}")
 
-        self.replay = ReplayMemory(kwargs["replay_size"], self.obs_dim, self.device)
-        self.logger = RLLogger(self.env_name, "dqn")
+        self.replay = ReplayMemory(kwargs["replay_size"],
+                                   self.obs_dim,
+                                   self.device)
+        logger_name = "dqn"
+        if "exp_name" in kwargs:
+            logger_name = kwargs["exp_name"]
+        self.logger = RLLogger(self.env_name, logger_name)
         self.setup_logger()
+        self.logger.save_config(kwargs)
 
         # Neural Network related attributes
-        self.dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions).to(self.device)
-        self.target_dqn = DQN(self.obs_dim, kwargs["hidden_sizes"], self.num_actions).to(self.device)
-
+        self.dqn = DQN(self.obs_dim,
+                       kwargs["hidden_sizes"],
+                       self.num_actions).to(self.device)
+        self.target_dqn = DQN(self.obs_dim,
+                              kwargs["hidden_sizes"],
+                              self.num_actions).to(self.device)
         print(self.dqn)
 
-        # self.optimizer = optim.RMSprop(self.dqn.parameters(), lr=kwargs["lr"])
         self.optimizer = optim.Adam(self.dqn.parameters(), lr=kwargs["lr"])
         self.loss_fn = nn.MSELoss()
 
         # Training related attributes
         self.exploration_steps = kwargs["exploration"]
         self.final_epsilon = kwargs["final_epsilon"]
-        self.epsilon_schedule = np.linspace(kwargs["init_epsilon"], self.final_epsilon, self.exploration_steps)
+        self.epsilon_schedule = np.linspace(kwargs["init_epsilon"],
+                                            self.final_epsilon,
+                                            self.exploration_steps)
         self.start_steps = kwargs["start_steps"]
         self.batch_size = kwargs["batch_size"]
         self.discount = kwargs["gamma"]
@@ -55,11 +73,12 @@ class DQNAgent:
         self.steps_done = 0
 
     def setup_logger(self):
-        # adds headers of interest
         self.logger.add_header("episode")
+        self.logger.add_header("seed")
         self.logger.add_header("steps_done")
         self.logger.add_header("episode_return")
         self.logger.add_header("episode_loss")
+        self.logger.add_header("time")
 
     def get_action(self, x):
         if self.steps_done < self.start_steps:
@@ -90,10 +109,9 @@ class DQNAgent:
         with torch.no_grad():
             target_q_val_raw = self.target_dqn(next_s_batch)
             target_q_val, _ = target_q_val_raw.max(1)
-            # calculate update target
             target = r_batch + self.discount*(1-d_batch)*target_q_val
 
-        # calculate mean square loss
+        # calculate loss
         loss = self.loss_fn(q_vals, target)
 
         # optimize the model
@@ -116,20 +134,23 @@ class DQNAgent:
         num_episodes = 0
         episode_returns = []
 
+        display_freq = min(100, int(self.training_steps // 10))
+
         while self.steps_done < self.training_steps:
+            start_time = time.time()
             ep_return, ep_loss = self.run_episode()
             episode_returns.append(ep_return)
             num_episodes += 1
 
-            if num_episodes % 100 == 0:
-                print(f"Episode {num_episodes}: return={ep_return:.4f} loss={ep_loss:.4f}"
-                      f"\t ({self.steps_done} / {self.training_steps} steps complete)")
-
             self.logger.log("episode", num_episodes)
+            self.logger.log("seed", self.seed)
             self.logger.log("steps_done", self.steps_done)
             self.logger.log("episode_return", ep_return)
             self.logger.log("episode_loss", ep_loss)
-            self.logger.flush()
+            self.logger.log("time", time.time()-start_time)
+
+            display = num_episodes % display_freq == 0
+            self.logger.flush(display)
 
         print("Training complete")
 
@@ -155,8 +176,9 @@ class DQNAgent:
             if self.steps_done % self.target_update_freq == 0:
                 self.update_target_net()
 
-            if self.steps_done % self.model_save_freq == 0:
-                save_path = self.logger.get_save_path(".pth")
+            if self.model_save_freq is not None and \
+               self.steps_done % self.model_save_freq == 0:
+                save_path = self.logger.get_save_path(ext=".pth")
                 self.dqn.save_DQN(save_path)
 
         return episode_return, episode_loss

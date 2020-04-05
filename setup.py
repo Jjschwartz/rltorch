@@ -14,7 +14,8 @@ setup(name="rltorch",
           'matplotlib',
           'torch>=1.4.0',
           'torchvision',
-          'prettytable'
+          'prettytable',
+          'pyyaml'
       ],
       description="Deep RL algorithm implementations using pytorch.",
       author="Jonathon Schwartz",
