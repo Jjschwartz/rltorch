@@ -166,6 +166,7 @@ class DQNAgent:
             display = num_episodes % display_freq == 0
             self.logger.flush(display)
 
+        self.logger.flush(True)
         print("Training complete")
 
     def run_episode(self):
