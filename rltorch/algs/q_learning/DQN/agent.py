@@ -11,7 +11,9 @@ import torch.optim as optim
 
 from .model import DQN
 from .replay import ReplayMemory
+
 from rltorch.utils.rl_logger import RLLogger
+from rltorch.utils.stat_utils import StatTracker
 
 
 class DQNAgent:
@@ -44,6 +46,7 @@ class DQNAgent:
         self.logger = RLLogger(self.env_name, logger_name)
         self.setup_logger()
         self.logger.save_config(kwargs)
+        self.stat_tracker = StatTracker()
 
         # Neural Network related attributes
         self.dqn = DQN(self.obs_dim,
@@ -78,6 +81,11 @@ class DQNAgent:
         self.logger.add_header("steps_done")
         self.logger.add_header("episode_return")
         self.logger.add_header("episode_loss")
+        self.logger.add_header("cumulative_return")
+        self.logger.add_header("mean_episode_return")
+        self.logger.add_header("min_episode_return")
+        self.logger.add_header("max_episode_return")
+        self.logger.add_header("episode_return_stdev")
         self.logger.add_header("time")
 
     def get_action(self, x):
@@ -141,12 +149,18 @@ class DQNAgent:
             ep_return, ep_loss = self.run_episode()
             episode_returns.append(ep_return)
             num_episodes += 1
+            self.stat_tracker.update(ep_return)
 
             self.logger.log("episode", num_episodes)
             self.logger.log("seed", self.seed)
             self.logger.log("steps_done", self.steps_done)
             self.logger.log("episode_return", ep_return)
             self.logger.log("episode_loss", ep_loss)
+            self.logger.log("cumulative_return", self.stat_tracker.total)
+            self.logger.log("mean_episode_return", self.stat_tracker.mean)
+            self.logger.log("min_episode_return", self.stat_tracker.min_val)
+            self.logger.log("max_episode_return", self.stat_tracker.max_val)
+            self.logger.log("episode_return_stdev", self.stat_tracker.stdev)
             self.logger.log("time", time.time()-start_time)
 
             display = num_episodes % display_freq == 0
