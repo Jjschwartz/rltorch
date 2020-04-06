@@ -26,10 +26,11 @@ def plot_all(file_path, x_key, smooth):
     num_plots = len(df.columns)-1
     print(f"Generating {num_plots} plots")
 
-    fig_cols = NUM_COLS
-    fig_rows = math.ceil(num_plots / NUM_COLS)
+    fig_cols = min(num_plots, NUM_COLS)
+    fig_rows = math.ceil(num_plots / fig_cols)
 
-    fig, axs = plt.subplots(fig_rows, fig_cols, sharex=True, figsize=(12, 10))
+    fig, axs = plt.subplots(fig_rows, fig_cols, sharex=True, figsize=(12, 10),
+                            squeeze=False)
 
     plots_done = 0
     for row in range(fig_rows):

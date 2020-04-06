@@ -4,7 +4,7 @@ from rltorch.algs.q_learning.DQN.agent import DQNAgent
 
 hyperparams = {
     # constants
-    "training_steps": [200000],
+    "training_steps": [100000],
     "final_epsilon": [0.01],
     "init_epsilon": [1.0],
     "exploration": [1000],
@@ -14,8 +14,8 @@ hyperparams = {
     "model_save_freq": [None],
     # to sample
     "hidden_sizes": [[64], [64, 64], [64, 64, 64]],
-    "lr": [0.1, 0.01, 0.001, 0.0001],
-    "batch_size": [1, 16, 32, 64, 128, 256],
+    "lr": [0.01, 0.001, 0.0001],
+    "batch_size": [1, 32, 128],
     "replay_size": [1000, 10000, 100000],
     "target_update_freq": [100, 1000, 10000],
 }

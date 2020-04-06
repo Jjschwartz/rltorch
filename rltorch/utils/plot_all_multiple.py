@@ -15,7 +15,11 @@ def plot_xy(ax, df, x_key, y_key, run_key, smooth):
     y_smooth_mean = y_smooth.mean()
     y_rolling_std = y_smooth.std()
 
-    ax.plot(x, y_smooth_mean, label=run_key)
+    if run_key is None:
+        ax.plot(x, y_smooth_mean)
+    else:
+        ax.plot(x, y_smooth_mean, label=run_key)
+
     ax.fill_between(x,
                     y_smooth_mean-y_rolling_std,
                     y_smooth_mean+y_rolling_std,
@@ -56,8 +60,8 @@ if __name__ == "__main__":
     parser.add_argument("file_paths", type=str, nargs="*")
     parser.add_argument("--x_key", type=str, default="epoch",
                         help="Key to plot on X Axis (default='epoch')")
-    parser.add_argument("--run_key", type=str, default="seed",
-                        help="Key to use to distinguish runs (default='seed')")
+    parser.add_argument("--run_key", type=str, default=None,
+                        help="Key to use to distinguish runs (default=None)")
     parser.add_argument("--smooth", type=int, default=1,
                         help="Smoothing window size (default=1)")
     args = parser.parse_args()

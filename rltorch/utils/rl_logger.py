@@ -7,9 +7,11 @@ from rltorch.user_config import DEFAULT_DATA_DIR
 
 
 RESULTS_FILE_NAME = "results"
-RESULTS_FILE_EXT = ".tsv"
+RESULTS_FILE_EXT = "tsv"
 CONFIG_FILE_NAME = "config"
-CONFIG_FILE_EXT = ".yaml"
+CONFIG_FILE_EXT = "yaml"
+CONFIG_FILE = f"{CONFIG_FILE_NAME}.{CONFIG_FILE_EXT}"
+RESULTS_FILE = f"{RESULTS_FILE_NAME}.{RESULTS_FILE_EXT}"
 
 
 class RLLogger:

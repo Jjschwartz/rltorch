@@ -2,6 +2,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from rltorch.utils.compile_util import list_files
+
 
 NUM_COLS = 5
 
@@ -32,7 +34,11 @@ def plot_single(grouped_df, x_key, y_key):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("file_paths", type=str, nargs="*")
+    parser.add_argument("--fps", type=str, nargs="*", default=None,
+                        help="List of file paths to results (default=None)")
+    parser.add_argument("--dp", type=str, default=None,
+                        help=("Parent dir of dirs containing results "
+                              "(default=None)"))
     parser.add_argument("--y_key", type=str, default="avg_return",
                         help="Key to plot on Y Axis (default='avg_return')")
     parser.add_argument("--x_key", type=str, default="epoch",
@@ -41,8 +47,15 @@ if __name__ == "__main__":
                         help="Key to aggregate runs over (default='epoch')")
     args = parser.parse_args()
 
+    if args.fps is not None:
+        results_fps = args.fps
+    elif args.dp is not None:
+        _, results_fps = list_files(args.dp)
+    else:
+        raise ValueError("Must supply either file paths of dir path")
+
     dfs = []
-    for fp in args.file_paths:
+    for fp in results_fps:
         dfs.append(pd.read_table(fp))
 
     concat_df = pd.concat(dfs)

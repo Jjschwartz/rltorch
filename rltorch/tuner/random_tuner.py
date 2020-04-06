@@ -3,6 +3,7 @@ Random Search based Hyperparameter optimization class
 
 Based heavily off of OpenAI spinningup ExperimentGrid class
 """
+import random
 import numpy as np
 import multiprocessing as mp
 
@@ -71,15 +72,13 @@ class RandomTuner(Tuner):
             p.map(self._run_variant, variants)
 
     def sample_next_variant(self):
-        """
-        Radomly samples next variant.
-        """
+        """Randomly samples next variant. """
         variant = {}
         for k, v in zip(self.keys, self.vals):
             if callable(v):
                 sampled_val = v()
             else:
-                sampled_val = np.random.choice(v)
+                sampled_val = random.choice(v)
             variant[k] = sampled_val
         return variant
 
