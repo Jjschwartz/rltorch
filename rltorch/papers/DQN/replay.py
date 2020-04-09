@@ -1,10 +1,12 @@
+import torch
 import numpy as np
 
 
 class ReplayMemory:
 
-    def __init__(self, capacity, s_dims):
+    def __init__(self, capacity, s_dims, device='cpu'):
         self.capacity = capacity
+        self.device = device
         self.s_buf = np.zeros((capacity, *s_dims), dtype=np.float32)
         self.a_buf = np.zeros(capacity, dtype=np.long)
         self.next_s_buf = np.zeros((capacity, *s_dims), dtype=np.float32)
@@ -23,8 +25,9 @@ class ReplayMemory:
 
     def sample_batch(self, batch_size):
         sample_idxs = np.random.choice(self.size, batch_size)
-        return (self.s_buf[sample_idxs],
-                self.a_buf[sample_idxs],
-                self.next_s_buf[sample_idxs],
-                self.r_buf[sample_idxs],
-                self.done_buf[sample_idxs])
+        batch = [self.s_buf[sample_idxs],
+                 self.a_buf[sample_idxs],
+                 self.next_s_buf[sample_idxs],
+                 self.r_buf[sample_idxs],
+                 self.done_buf[sample_idxs]]
+        return [torch.from_numpy(buf).to(self.device) for buf in batch]

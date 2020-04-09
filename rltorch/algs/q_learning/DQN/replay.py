@@ -26,7 +26,7 @@ class ReplayMemory:
     def sample_batch(self, batch_size):
         sample_idxs = np.random.choice(self.size, batch_size)
         batch = [self.s_buf[sample_idxs],
-                 self.a_buf[sample_idxs],
+                 self.a_buf[sample_idxs].reshape(batch_size, 1),
                  self.next_s_buf[sample_idxs],
                  self.r_buf[sample_idxs],
                  self.done_buf[sample_idxs]]

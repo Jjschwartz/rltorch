@@ -10,6 +10,7 @@ https://pillow.readthedocs.io/en/latest/reference/Image.html
 """
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 
 
 class ImageProcessor:
@@ -26,7 +27,8 @@ class ImageProcessor:
         img = img.resize((self.resized_width, self.resized_height))
         # 3. convert image to grey scale
         img = img.convert(mode="L")
-        return np.asarray(img)
+        x = np.asarray(img)
+        return x
 
     def debug(self, f1, f2):
         raw1 = Image.fromarray(f1)
@@ -36,6 +38,19 @@ class ImageProcessor:
         raw1.show("raw1")
         raw2.show("raw2")
         processed.show("processed")
+
+    def show_image(self, x, wait_for_user=True):
+        img = Image.fromarray(x)
+        img.show()
+        if wait_for_user:
+            input("Press any key..")
+
+    def show_stacked(self, x_stacked, wait_for_user=True):
+        print(x_stacked.shape)
+        for i in range(x_stacked.shape[1]):
+            self.show_image(x_stacked[0][i], False)
+        if wait_for_user:
+            input("Press any key..")
 
 
 class ImageHistory:
@@ -54,7 +69,8 @@ class ImageHistory:
     def get(self):
         assert self.size == self.length
         # must add 1 for N dim for DQN
-        history_buffer = np.empty((1, self.length, *self.img_dims), dtype=np.float32)
+        history_buffer = np.empty((1, self.length, *self.img_dims),
+                                  dtype=np.float32)
         history_buffer[0][:self.length-self.ptr] = self.history[self.ptr:]
         history_buffer[0][self.length-self.ptr:] = self.history[:self.ptr]
         return history_buffer

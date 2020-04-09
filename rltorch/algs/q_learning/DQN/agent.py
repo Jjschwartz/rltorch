@@ -17,6 +17,7 @@ from rltorch.utils.stat_utils import StatTracker
 
 
 class DQNAgent:
+    """The vanilla DQN Agent (with no target network) """
 
     def __init__(self, **kwargs):
         print("\nDQN with config:")
@@ -41,7 +42,7 @@ class DQNAgent:
                                    self.obs_dim,
                                    self.device)
         logger_name = "dqn"
-        if "exp_name" in kwargs:
+        if "exp_name" in kwargs and kwargs["exp_name"]:
             logger_name = kwargs["exp_name"]
         self.logger = RLLogger(self.env_name, logger_name)
         self.setup_logger()
@@ -52,9 +53,6 @@ class DQNAgent:
         self.dqn = DQN(self.obs_dim,
                        kwargs["hidden_sizes"],
                        self.num_actions).to(self.device)
-        self.target_dqn = DQN(self.obs_dim,
-                              kwargs["hidden_sizes"],
-                              self.num_actions).to(self.device)
         print(self.dqn)
 
         self.optimizer = optim.Adam(self.dqn.parameters(), lr=kwargs["lr"])
@@ -70,7 +68,6 @@ class DQNAgent:
         self.batch_size = kwargs["batch_size"]
         self.discount = kwargs["gamma"]
         self.training_steps = kwargs["training_steps"]
-        self.target_update_freq = kwargs["target_update_freq"]
         self.network_update_freq = kwargs["network_update_freq"]
         self.model_save_freq = kwargs["model_save_freq"]
         self.steps_done = 0
@@ -115,7 +112,7 @@ class DQNAgent:
 
         # get target q val = max val of next state
         with torch.no_grad():
-            target_q_val_raw = self.target_dqn(next_s_batch)
+            target_q_val_raw = self.dqn(next_s_batch)
             target_q_val, _ = target_q_val_raw.max(1)
             target = r_batch + self.discount*(1-d_batch)*target_q_val
 
@@ -125,9 +122,6 @@ class DQNAgent:
         # optimize the model
         self.optimizer.zero_grad()
         loss.backward()
-        for param in self.dqn.parameters():
-            # clip squared gradient
-            param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
         loss_value = loss.item()
         return loss_value
@@ -140,14 +134,12 @@ class DQNAgent:
         self.steps_done = 0
 
         num_episodes = 0
-        episode_returns = []
 
         display_freq = min(100, int(self.training_steps // 10))
 
         while self.steps_done < self.training_steps:
             start_time = time.time()
             ep_return, ep_loss = self.run_episode()
-            episode_returns.append(ep_return)
             num_episodes += 1
             self.stat_tracker.update(ep_return)
 
@@ -187,9 +179,6 @@ class DQNAgent:
 
             if self.steps_done % self.network_update_freq == 0:
                 episode_loss = self.optimize()
-
-            if self.steps_done % self.target_update_freq == 0:
-                self.update_target_net()
 
             if self.model_save_freq is not None and \
                self.steps_done % self.model_save_freq == 0:

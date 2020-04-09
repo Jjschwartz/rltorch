@@ -1,5 +1,7 @@
+import time
 import random
 import numpy as np
+from pprint import pprint
 from gym.envs.atari import AtariEnv
 
 import torch
@@ -10,26 +12,36 @@ from .model import DQN
 from .replay import ReplayMemory
 import rltorch.papers.DQN.hyperparams as hp
 from rltorch.utils.rl_logger import RLLogger
+from rltorch.utils.stat_utils import StatTracker
 from .preprocess import ImageProcessor, ImageHistory
 
-# TODO Look into storing tensors rather than numpy, for efficieny and to save
-# repeated numpy -> tensor conversions. Maybe it's not a big deal.
+RENDER = False
 
 
 class DQNAgent:
 
     def __init__(self, env_name, death_ends_episode=True):
+        print("\nDQN for Atari: {env_name}")
+        pprint(hp.ALL_KWARGS)
+
         self.env_name = env_name
         self.env = AtariEnv(game=env_name, frameskip=1, obs_type="image")
         self.num_actions = self.env.action_space.n
-        self.replay = ReplayMemory(hp.REPLAY_SIZE, hp.STATE_DIMS)
+
+        self.device = torch.device("cuda"
+                                   if torch.cuda.is_available()
+                                   else "cpu")
+        print(f"Using device={self.device}")
+
+        self.replay = ReplayMemory(hp.REPLAY_SIZE, hp.STATE_DIMS, self.device)
         self.img_processor = ImageProcessor(hp.HEIGHT, hp.WIDTH)
         self.img_buffer = ImageHistory(hp.AGENT_HISTORY, (hp.HEIGHT, hp.WIDTH))
-        self.logger = RLLogger(env_name, "dqn_atari")
-        self.setup_logger()
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device={self.device}")
+        logger_name = "dqn_atari"
+        self.logger = RLLogger(self.env_name, logger_name)
+        self.setup_logger()
+        self.logger.save_config(hp.ALL_KWARGS)
+        self.stat_tracker = StatTracker()
 
         # Neural Network related attributes
         self.dqn = DQN(self.num_actions).to(self.device)
@@ -41,17 +53,23 @@ class DQNAgent:
         self.loss_fn = nn.MSELoss()
 
         # Training related attributes
-        self.epsilon_schedule = np.linspace(hp.INITIAL_EXPLORATION, hp.FINAL_EXPLORATION,
+        self.epsilon_schedule = np.linspace(hp.INITIAL_EXPLORATION,
+                                            hp.FINAL_EXPLORATION,
                                             hp.FINAL_EXPLORATION_FRAME)
         self.death_ends_episode = death_ends_episode
         self.steps_done = 0
 
     def setup_logger(self):
-        # adds headers of interest
         self.logger.add_header("episode")
         self.logger.add_header("steps_done")
         self.logger.add_header("episode_return")
         self.logger.add_header("episode_loss")
+        self.logger.add_header("cumulative_return")
+        self.logger.add_header("mean_episode_return")
+        self.logger.add_header("min_episode_return")
+        self.logger.add_header("max_episode_return")
+        self.logger.add_header("episode_return_stdev")
+        self.logger.add_header("time")
 
     def get_action(self, x):
         if self.steps_done < hp.REPLAY_START_SIZE:
@@ -64,7 +82,7 @@ class DQNAgent:
 
         if random.random() > epsilon:
             x = torch.from_numpy(x).to(self.device)
-            return self.dqn.get_action(x)
+            return self.dqn.get_action(x).cpu().numpy()
         return random.randint(0, self.num_actions-1)
 
     def optimize(self):
@@ -74,21 +92,15 @@ class DQNAgent:
         batch = self.replay.sample_batch(hp.MINIBATCH_SIZE)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
 
-        s_batch_tensor = torch.from_numpy(s_batch).to(self.device)
-        next_s_batch_tensor = torch.from_numpy(next_s_batch).to(self.device)
-        a_batch_tensor = torch.from_numpy(a_batch.reshape(hp.MINIBATCH_SIZE, 1)).to(self.device)
-        r_batch_tensor = torch.from_numpy(r_batch).to(self.device)
-        d_batch_tensor = torch.from_numpy((1-d_batch)).to(self.device)
-
         # get q_vals for each state and the action performed in that state
-        q_vals_raw = self.dqn(s_batch_tensor)
-        q_vals = q_vals_raw.gather(1, a_batch_tensor).squeeze()
+        q_vals_raw = self.dqn(s_batch)
+        q_vals = q_vals_raw.gather(1, a_batch).squeeze()
 
         # get target q val = max val of next state
-        target_q_val, _ = self.target_dqn(next_s_batch_tensor).max(1)
+        target_q_val, _ = self.target_dqn(next_s_batch).max(1)
 
         # calculate update target
-        target = r_batch_tensor + hp.DISCOUNT*d_batch_tensor*target_q_val
+        target = r_batch + hp.DISCOUNT*d_batch*target_q_val
         # calculate mean square loss
         loss = self.loss_fn(q_vals, target)
         # optimize the model
@@ -108,29 +120,33 @@ class DQNAgent:
     def train(self):
         print("Starting training")
         self.steps_done = 0
-
         num_episodes = 0
-        episode_returns = []
-
         while self.steps_done < hp.TRAINING_FRAMES:
+            start_time = time.time()
             ep_return, ep_loss = self.run_episode()
-            episode_returns.append(ep_return)
             num_episodes += 1
 
-            if num_episodes % 10 == 0:
-                print(f"Episode {num_episodes}: return={ep_return:.4f} loss={ep_loss:.4f}"
-                      f"\t ({self.steps_done} / {hp.TRAINING_FRAMES} steps complete)")
+            self.stat_tracker.update(ep_return)
 
             self.logger.log("episode", num_episodes)
             self.logger.log("steps_done", self.steps_done)
             self.logger.log("episode_return", ep_return)
             self.logger.log("episode_loss", ep_loss)
-            self.logger.flush()
+            self.logger.log("cumulative_return", self.stat_tracker.total)
+            self.logger.log("mean_episode_return", self.stat_tracker.mean)
+            self.logger.log("min_episode_return", self.stat_tracker.min_val)
+            self.logger.log("max_episode_return", self.stat_tracker.max_val)
+            self.logger.log("episode_return_stdev", self.stat_tracker.stdev)
+            self.logger.log("time", time.time()-start_time)
 
+            display = num_episodes % 10 == 0
+            self.logger.flush(display)
+
+        self.logger.flush(True)
         print("Training complete")
 
     def run_episode(self):
-        s = self.init_episode()
+        xs = self.init_episode()
         done = False
         start_lives = self.env.ale.lives()
 
@@ -138,18 +154,21 @@ class DQNAgent:
         episode_loss = 0
 
         while not done and self.steps_done < hp.TRAINING_FRAMES:
-            self.img_buffer.push(s)
-            x = self.img_buffer.get()
-            a = self.get_action(x)
-            next_s, r = self.step(a)
+            if RENDER:
+                self.env.render()
+
+            a = self.get_action(xs)
+            next_x, r = self.step(a)
+            self.img_buffer.push(next_x)
+            next_xs = self.img_buffer.get()
 
             life_lost = self.env.ale.lives() < start_lives
-            if self.env.ale.game_over() or (self.death_ends_episode and life_lost):
-                done = True
+            done = (self.env.ale.game_over() or
+                    (self.death_ends_episode and life_lost))
 
             clipped_r = np.clip(r, *hp.R_CLIP)
-            self.replay.store(s, a, next_s, clipped_r, done)
-            s = next_s
+            self.replay.store(xs, a, next_xs, clipped_r, done)
+            xs = next_xs
             episode_return += r
             self.steps_done += 1
 
@@ -169,12 +188,12 @@ class DQNAgent:
         """Perform a step, repeating given action ACTION_REPEAT times, and
         return processed image and reward """
         reward = 0.0
-        img_buffer = []
+        tmp_buffer = []
         for i in range(hp.ACTION_REPEAT):
             s, r, d, info = self.env.step(a)
             reward += r
-            img_buffer.append(s)
-        x = self.img_processor.process_frames(*img_buffer[:-2])
+            tmp_buffer.append(s)
+        x = self.img_processor.process_frames(*tmp_buffer[:-2])
         return x, reward
 
     def init_episode(self):
@@ -188,4 +207,4 @@ class DQNAgent:
         for _ in range(hp.AGENT_HISTORY):
             x, _ = self.step(0)
             self.img_buffer.push(x)
-        return x
+        return self.img_buffer.get()

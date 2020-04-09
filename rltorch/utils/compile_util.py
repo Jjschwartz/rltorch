@@ -5,16 +5,18 @@ Result files compiled:
 - sim_results.txt
 """
 import os
+import shutil
 import os.path as osp
 
+import rltorch.utils.rl_logger as rlog
 import rltorch.utils.file_utils as futils
-from rltorch.utils.rl_logger import RESULTS_FILE, CONFIG_FILE
+from rltorch.user_config import DEFAULT_DATA_DIR
 
 
 def compile_results(parent_dir):
     """Compiles result files in directory and sub directories """
     config_files, results_files = list_files(parent_dir)
-    results_out_file = osp.join(parent_dir, RESULTS_FILE)
+    results_out_file = osp.join(parent_dir, rlog.RESULTS_FILE)
     compile_result_files(config_files, results_files, results_out_file)
 
 
@@ -24,9 +26,9 @@ def list_files(dir):
     for root, dirs, files in os.walk(dir):
         for name in files:
             fname = osp.join(root, name)
-            if fname.endswith(CONFIG_FILE):
+            if fname.endswith(rlog.CONFIG_FILE):
                 config_files.append(fname)
-            if fname.endswith(RESULTS_FILE):
+            if fname.endswith(rlog.RESULTS_FILE):
                 results_files.append(fname)
     return config_files, results_files
 
@@ -42,29 +44,75 @@ def clean_result_line(line):
     return "\t".join(clean_tokens)
 
 
+def format_config(config_file, headers=None):
+    config = futils.load_yaml(config_file)
+    tokens = []
+    if headers is None:
+        headers = list(config.keys())
+    for h in headers:
+        v = config[h]
+        tokens.append(format_value(v))
+    line = "\t".join(tokens)
+    return headers, line
+
+
+def format_value(v):
+    if isinstance(v, float):
+        return f"{v:.3f}"
+    return str(v)
+
+
 def compile_result_files(config_files, result_files, out_file_name):
     print(f"Compiling results into {out_file_name}")
     with open(out_file_name, "w") as fout:
         header_added = False
-        for result_file in result_files:
+        config_headers = None
+        for config_file, result_file in zip(config_files, result_files):
+            config_headers, config_line = format_config(config_file)
             with open(result_file, "r") as rin:
                 print(f"Reading {result_file}")
-                first_line = rin.readline()
+                result_line = rin.readline()
                 if not header_added:
-                    if is_solver_results:
-                        first_line = f"Model\t{first_line}"
-                    fout.write(first_line)
+                    config_header_line = "\t".join(config_headers)
+                    header_line = f"{config_header_line}\t{result_line}"
+                    fout.write(header_line)
                     header_added = True
 
-                line = rin.readline()
-                while line:
-                    if is_solver_results:
-                        model_name = futils.get_dir_name(result_file)
-                        line = f"{model_name}\t{line}"
-                    else:
-                        line = clean_sim_line(line)
+                result_line = rin.readline()
+                while result_line:
+                    result_line = clean_result_line(result_line)
+                    line = f"{config_line}\t{result_line}"
                     fout.write(line)
-                    line = rin.readline()
+                    result_line = rin.readline()
+
+
+def copy_files_into_single_dir(dir_paths, parent_dir_name):
+    result_fps = []
+    config = None
+    for d in dir_paths:
+        d_files = futils.get_all_files_from_dir(d)
+        print(d_files)
+        for f in d_files:
+            if config is None and \
+               futils.get_file_name(f) == rlog.CONFIG_FILE_NAME:
+                config = f
+            if futils.get_file_name(f) == rlog.RESULTS_FILE_NAME:
+                result_fps.append(f)
+
+    new_dir = os.path.join(DEFAULT_DATA_DIR, parent_dir_name)
+    futils.make_dir(new_dir)
+
+    shutil.copy(config, new_dir)
+    for i, fp in enumerate(result_fps):
+        fname = futils.get_dir_name(fp)
+        new_fname = f"{rlog.RESULTS_FILE_NAME}_{fname}.{rlog.RESULTS_FILE_EXT}"
+        new_fp = os.path.join(new_dir, new_fname)
+        shutil.copy(fp, new_fp)
+
+
+def move_dirs_into_single_dir(dir_paths, parent_dir_name):
+    parent_dir = os.path.join(DEFAULT_DATA_DIR, parent_dir_name)
+    futils.move_dirs_into_parent_dir(dir_paths, parent_dir)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ multiple packages.
 """
 import os
 import yaml
+import shutil
 import pathlib
 import tempfile
 import os.path as osp
@@ -98,3 +99,9 @@ def get_tmp_file(suffix=None):
     """
     with tempfile.NamedTemporaryFile(suffix=suffix) as temp_file:
         return temp_file.name
+
+
+def move_dirs_into_parent_dir(dir_paths, parent_dir):
+    make_dir(parent_dir)
+    for d in dir_paths:
+        shutil.move(d, parent_dir)

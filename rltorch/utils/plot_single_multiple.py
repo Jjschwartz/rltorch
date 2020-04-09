@@ -1,5 +1,4 @@
 """Plot all metrics for multiple seeds of the same experiment """
-import math
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -30,28 +29,12 @@ def plot_xy(ax, df, x_key, y_key, run_key, smooth):
     ax.set_ylabel(y_key)
 
 
-def plot_all(dfs, x_key, run_key, smooth):
-    column_keys = list(dfs[0].columns)
-    column_keys.remove(x_key)
-    num_plots = len(column_keys)-1
-    print(f"Generating {num_plots} plots")
+def plot_all(dfs, x_key, run_key, y_key, smooth):
+    print(f"Generating 1 plot")
+    fig, ax = plt.subplots(1, 1)
 
-    fig_cols = min(num_plots, NUM_COLS)
-    fig_rows = math.ceil(num_plots / fig_cols)
-
-    fig, axs = plt.subplots(fig_rows, fig_cols, sharex=True, figsize=(12, 10),
-                            squeeze=False)
-
-    plots_done = 0
-    for row in range(fig_rows):
-        for col in range(fig_cols):
-            if plots_done > num_plots:
-                break
-            ax = axs[row][col]
-            y_key = column_keys[plots_done]
-            for df in dfs:
-                plot_xy(ax, df, x_key, y_key, run_key, smooth)
-            plots_done += 1
+    for df in dfs:
+        plot_xy(ax, df, x_key, y_key, run_key, smooth)
     fig.tight_layout()
     plt.show()
 
@@ -64,6 +47,8 @@ if __name__ == "__main__":
     parser.add_argument("--dp", type=str, default=None,
                         help=("Parent dir of dirs containing results "
                               "(default=None)"))
+    parser.add_argument("--y_key", type=str, default="avg_return",
+                        help="Key to plot on Y Axis (default='avg_return')")
     parser.add_argument("--x_key", type=str, default="epoch",
                         help="Key to plot on X Axis (default='epoch')")
     parser.add_argument("--run_key", type=str, default=None,
@@ -83,4 +68,4 @@ if __name__ == "__main__":
     for fp in results_fps:
         dfs.append(pd.read_table(fp))
 
-    plot_all(dfs, args.x_key, args.run_key, args.smooth)
+    plot_all(dfs, args.x_key, args.run_key, args.y_key, args.smooth)
