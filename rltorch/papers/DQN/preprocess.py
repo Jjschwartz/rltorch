@@ -10,7 +10,6 @@ https://pillow.readthedocs.io/en/latest/reference/Image.html
 """
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
 
 
 class ImageProcessor:

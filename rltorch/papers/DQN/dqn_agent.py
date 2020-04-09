@@ -91,6 +91,7 @@ class DQNAgent:
 
         batch = self.replay.sample_batch(hp.MINIBATCH_SIZE)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
+        a_batch = a_batch.view(hp.MINIBATCH_SIZE, 1)
 
         # get q_vals for each state and the action performed in that state
         q_vals_raw = self.dqn(s_batch)
