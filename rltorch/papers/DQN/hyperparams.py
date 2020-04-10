@@ -9,9 +9,8 @@ STATE_DIMS = (AGENT_HISTORY, WIDTH, HEIGHT)
 
 DISCOUNT = 0.99
 MINIBATCH_SIZE = 32
-# REPLAY_SIZE = 1e6
-REPLAY_SIZE = 400000     # while testing due to memory limits on server
-# REPLAY_SIZE = 45000     # while testing due to memory limits on laptop
+REPLAY_SIZE = int(1e6)
+# REPLAY_SIZE = int(1e5)     # while testing due to memory limits on laptop
 # Number of steps between target network updates
 TARGET_NETWORK_UPDATE_FREQ = 10000
 # Number of times an action is repeated, i.e. number of frames skipped
@@ -33,8 +32,8 @@ INITIAL_EXPLORATION = 1.0
 FINAL_EXPLORATION = 0.1
 FINAL_EXPLORATION_FRAME = 1000000
 # Number of frames to run random policy and before learning starts
-REPLAY_START_SIZE = 50000
-# REPLAY_START_SIZE = 1000    # for testing
+# REPLAY_START_SIZE = 50000
+REPLAY_START_SIZE = 1000    # for testing
 # Max number of "do nothing" actions to be performed by agent at start of
 # episode
 NO_OP_MAX = 30
@@ -61,12 +60,11 @@ R_CLIP = [-1, 1]
 GRAD_CLIP = [-1, 1]
 
 # training duration (50 million)
-# TRAINING_FRAMES = 50000000
-TRAINING_FRAMES = 50000000
+TRAINING_FRAMES = int(5e7)
 
 # Other hyperparams not related to paper
 # Model Save Freq
-MODEL_SAVE_FREQ = 1000000
+MODEL_SAVE_FREQ = int(1e6)
 
 
 ALL_KWARGS = locals()

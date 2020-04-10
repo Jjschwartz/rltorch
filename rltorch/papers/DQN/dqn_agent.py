@@ -33,7 +33,12 @@ class DQNAgent:
                                    else "cpu")
         print(f"Using device={self.device}")
 
-        self.replay = ReplayMemory(hp.REPLAY_SIZE, hp.STATE_DIMS, self.device)
+        self.replay = ReplayMemory(hp.REPLAY_SIZE,
+                                   hp.AGENT_HISTORY,
+                                   hp.WIDTH,
+                                   hp.HEIGHT,
+                                   self.device)
+        self.replay.display_memory_usage()
         self.img_processor = ImageProcessor(hp.HEIGHT, hp.WIDTH)
         self.img_buffer = ImageHistory(hp.AGENT_HISTORY, (hp.HEIGHT, hp.WIDTH))
 
@@ -69,7 +74,8 @@ class DQNAgent:
         self.logger.add_header("min_episode_return")
         self.logger.add_header("max_episode_return")
         self.logger.add_header("episode_return_stdev")
-        self.logger.add_header("time")
+        self.logger.add_header("episode_time")
+        self.logger.add_header("total_training_time")
 
     def get_action(self, x):
         if self.steps_done < hp.REPLAY_START_SIZE:
@@ -91,7 +97,6 @@ class DQNAgent:
 
         batch = self.replay.sample_batch(hp.MINIBATCH_SIZE)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
-        a_batch = a_batch.view(hp.MINIBATCH_SIZE, 1)
 
         # get q_vals for each state and the action performed in that state
         q_vals_raw = self.dqn(s_batch)
@@ -120,6 +125,7 @@ class DQNAgent:
 
     def train(self):
         print("Starting training")
+        training_start_time = time.time()
         self.steps_done = 0
         num_episodes = 0
         while self.steps_done < hp.TRAINING_FRAMES:
@@ -138,7 +144,9 @@ class DQNAgent:
             self.logger.log("min_episode_return", self.stat_tracker.min_val)
             self.logger.log("max_episode_return", self.stat_tracker.max_val)
             self.logger.log("episode_return_stdev", self.stat_tracker.stdev)
-            self.logger.log("time", time.time()-start_time)
+            self.logger.log("episode_time", time.time()-start_time)
+            self.logger.log("total_training_time",
+                            time.time()-training_start_time)
 
             display = num_episodes % 10 == 0
             self.logger.flush(display)
@@ -168,7 +176,7 @@ class DQNAgent:
                     (self.death_ends_episode and life_lost))
 
             clipped_r = np.clip(r, *hp.R_CLIP)
-            self.replay.store(xs, a, next_xs, clipped_r, done)
+            self.replay.store(xs, a, next_x, clipped_r, done)
             xs = next_xs
             episode_return += r
             self.steps_done += 1
@@ -180,7 +188,7 @@ class DQNAgent:
                 self.update_target_net()
 
             if self.steps_done % hp.MODEL_SAVE_FREQ == 0:
-                save_path = self.logger.get_save_path(".pth")
+                save_path = self.logger.get_save_path(ext=".pth")
                 self.dqn.save_DQN(save_path)
 
         return episode_return, episode_loss
