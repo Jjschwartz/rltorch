@@ -73,7 +73,7 @@ class RLLogger:
         table.field_name = ["Metric", "Value"]
         for header in self.headers:
             val = self.log_buffer[header]
-            val = f"{val:.4f}" if isinstance(val, float) else str(val)
+            val = f"{val:.6f}" if isinstance(val, float) else str(val)
             table.add_row([header, val])
         print()
         print(table)

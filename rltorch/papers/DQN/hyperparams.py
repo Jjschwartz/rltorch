@@ -1,5 +1,7 @@
 """Hyperparameters from paper """
 
+TESTING = False
+
 # Image sizing
 WIDTH = 84
 HEIGHT = 84
@@ -10,13 +12,11 @@ STATE_DIMS = (AGENT_HISTORY, WIDTH, HEIGHT)
 DISCOUNT = 0.99
 MINIBATCH_SIZE = 32
 REPLAY_SIZE = int(1e6)
-# REPLAY_SIZE = int(1e5)     # while testing due to memory limits on laptop
 # Number of steps between target network updates
 TARGET_NETWORK_UPDATE_FREQ = 10000
 # Number of times an action is repeated, i.e. number of frames skipped
 ACTION_REPEAT = 4
-# Network update frequency. How many actions are performed before Gradient
-# descent update
+# How many actions are performed before Gradient descent update
 NETWORK_UPDATE_FREQUENCY = 4
 
 # Parameters for network learning
@@ -32,10 +32,8 @@ INITIAL_EXPLORATION = 1.0
 FINAL_EXPLORATION = 0.1
 FINAL_EXPLORATION_FRAME = 1000000
 # Number of frames to run random policy and before learning starts
-# REPLAY_START_SIZE = 50000
-REPLAY_START_SIZE = 1000    # for testing
-# Max number of "do nothing" actions to be performed by agent at start of
-# episode
+REPLAY_START_SIZE = 50000
+# Max number of "do nothing" actions to be performed at start of episode
 NO_OP_MAX = 30
 
 # Network architecture
@@ -65,6 +63,12 @@ TRAINING_FRAMES = int(5e7)
 # Other hyperparams not related to paper
 # Model Save Freq
 MODEL_SAVE_FREQ = int(1e6)
+
+if TESTING:
+    print("WARNING: using test hyperparams")
+    input("Press any key to continue..")
+    REPLAY_SIZE = int(1e5)
+    REPLAY_START_SIZE = 1000
 
 
 ALL_KWARGS = locals()
