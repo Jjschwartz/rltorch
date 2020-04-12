@@ -47,7 +47,7 @@ class DQNAgent:
         self.logger = RLLogger(self.env_name, logger_name)
         self.setup_logger()
         self.logger.save_config(kwargs)
-        self.stat_tracker = StatTracker()
+        self.return_tracker = StatTracker()
 
         # Neural Network related attributes
         self.dqn = DQN(self.obs_dim,
@@ -56,6 +56,10 @@ class DQNAgent:
         print(self.dqn)
 
         self.optimizer = optim.Adam(self.dqn.parameters(), lr=kwargs["lr"])
+        # self.optimizer = optim.RMSprop(self.dqn.parameters(),
+        #                                lr=0.00025,
+        #                                alpha=0.95,
+        #                                eps=0.01)
         self.loss_fn = nn.MSELoss()
 
         # Training related attributes
@@ -78,7 +82,8 @@ class DQNAgent:
         self.logger.add_header("steps_done")
         self.logger.add_header("episode_return")
         self.logger.add_header("episode_loss")
-        self.logger.add_header("cumulative_return")
+        self.logger.add_header("episode_mean_v")
+        self.logger.add_header("episode_mean_td_error")
         self.logger.add_header("mean_episode_return")
         self.logger.add_header("min_episode_return")
         self.logger.add_header("max_episode_return")
@@ -101,7 +106,7 @@ class DQNAgent:
 
     def optimize(self):
         if self.steps_done < self.start_steps:
-            return 0
+            return 0, 0, 0
 
         batch = self.replay.sample_batch(self.batch_size)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
@@ -122,12 +127,13 @@ class DQNAgent:
         # optimize the model
         self.optimizer.zero_grad()
         loss.backward()
+        # for param in self.dqn.parameters():
+        # param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
         loss_value = loss.item()
-        return loss_value
-
-    def update_target_net(self):
-        self.target_dqn.load_state_dict(self.dqn.state_dict())
+        mean_v = target_q_val.mean().item()
+        mean_td_error = (target - q_vals).abs().mean().item()
+        return (loss_value, mean_v, mean_td_error)
 
     def train(self):
         print("Starting training")
@@ -139,20 +145,12 @@ class DQNAgent:
 
         while self.steps_done < self.training_steps:
             start_time = time.time()
-            ep_return, ep_loss = self.run_episode()
+            self.run_episode()
             num_episodes += 1
-            self.stat_tracker.update(ep_return)
 
             self.logger.log("episode", num_episodes)
             self.logger.log("seed", self.seed)
             self.logger.log("steps_done", self.steps_done)
-            self.logger.log("episode_return", ep_return)
-            self.logger.log("episode_loss", ep_loss)
-            self.logger.log("cumulative_return", self.stat_tracker.total)
-            self.logger.log("mean_episode_return", self.stat_tracker.mean)
-            self.logger.log("min_episode_return", self.stat_tracker.min_val)
-            self.logger.log("max_episode_return", self.stat_tracker.max_val)
-            self.logger.log("episode_return_stdev", self.stat_tracker.stdev)
             self.logger.log("time", time.time()-start_time)
 
             display = num_episodes % display_freq == 0
@@ -178,11 +176,19 @@ class DQNAgent:
             self.steps_done += 1
 
             if self.steps_done % self.network_update_freq == 0:
-                episode_loss = self.optimize()
+                episode_loss, mean_v, mean_td_error = self.optimize()
 
             if self.model_save_freq is not None and \
                self.steps_done % self.model_save_freq == 0:
                 save_path = self.logger.get_save_path(ext=".pth")
                 self.dqn.save_DQN(save_path)
 
-        return episode_return, episode_loss
+        self.return_tracker.update(episode_return)
+        self.logger.log("episode_return", episode_return)
+        self.logger.log("episode_loss", episode_loss)
+        self.logger.log("episode_mean_v", mean_v)
+        self.logger.log("episode_mean_td_error", mean_td_error)
+        self.logger.log("mean_episode_return", self.return_tracker.mean)
+        self.logger.log("min_episode_return", self.return_tracker.min_val)
+        self.logger.log("max_episode_return", self.return_tracker.max_val)
+        self.logger.log("episode_return_stdev", self.return_tracker.stdev)
