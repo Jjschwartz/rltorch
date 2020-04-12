@@ -42,11 +42,11 @@ class DQNAgent:
         self.img_processor = ImageProcessor(hp.HEIGHT, hp.WIDTH)
         self.img_buffer = ImageHistory(hp.AGENT_HISTORY, (hp.HEIGHT, hp.WIDTH))
 
-        logger_name = "dqn_atari"
-        self.logger = RLLogger(self.env_name, logger_name)
-        self.setup_logger()
+        self.logger = RLLogger(self.env_name, "dqn_atari")
         self.logger.save_config(hp.ALL_KWARGS)
-        self.stat_tracker = StatTracker()
+        self.eval_logger = RLLogger(self.env_name, "dqn_atari_eval")
+        self.setup_logger()
+        self.return_tracker = StatTracker()
 
         # Neural Network related attributes
         self.dqn = DQN(self.num_actions).to(self.device)
@@ -69,13 +69,24 @@ class DQNAgent:
         self.logger.add_header("steps_done")
         self.logger.add_header("episode_return")
         self.logger.add_header("episode_loss")
-        self.logger.add_header("cumulative_return")
+        self.logger.add_header("episode_mean_v")
+        self.logger.add_header("episode_mean_td_error")
         self.logger.add_header("mean_episode_return")
         self.logger.add_header("min_episode_return")
         self.logger.add_header("max_episode_return")
         self.logger.add_header("episode_return_stdev")
         self.logger.add_header("episode_time")
         self.logger.add_header("total_training_time")
+
+        self.eval_logger.add_header("training_step")
+        self.eval_logger.add_header("training_episode")
+        self.eval_logger.add_header("training_time")
+        self.eval_logger.add_header("num_eval_episode")
+        self.eval_logger.add_header("episode_return_mean")
+        self.eval_logger.add_header("episode_return_min")
+        self.eval_logger.add_header("episode_return_max")
+        self.eval_logger.add_header("episode_return_stdev")
+        self.eval_logger.add_header("eval_time")
 
     def get_action(self, x):
         if self.steps_done < hp.REPLAY_START_SIZE:
@@ -85,7 +96,9 @@ class DQNAgent:
             epsilon = self.epsilon_schedule[self.steps_done]
         else:
             epsilon = hp.FINAL_EXPLORATION
+        return self.get_egreedy_action(x, epsilon)
 
+    def get_egreedy_action(self, x, epsilon):
         if random.random() > epsilon:
             x = torch.from_numpy(x).to(self.device)
             return self.dqn.get_action(x).cpu().numpy()
@@ -93,7 +106,7 @@ class DQNAgent:
 
     def optimize(self):
         if self.steps_done < hp.REPLAY_START_SIZE:
-            return 0
+            return 0, 0, 0
 
         batch = self.replay.sample_batch(hp.MINIBATCH_SIZE)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
@@ -112,7 +125,9 @@ class DQNAgent:
         self.optimizer.step()
 
         loss_value = loss.item()
-        return loss_value
+        mean_v = target_q_val.mean().item()
+        mean_td_error = (target - q_vals).abs().mean().item()
+        return loss_value, mean_v, mean_td_error
 
     def update_target_net(self):
         self.target_dqn.load_state_dict(self.dqn.state_dict())
@@ -122,45 +137,61 @@ class DQNAgent:
         training_start_time = time.time()
         self.steps_done = 0
         num_episodes = 0
-        while self.steps_done < hp.TRAINING_FRAMES:
+        steps_since_eval = 0
+        steps_remaining = hp.TRAINING_FRAMES
+        while steps_remaining > 0:
             start_time = time.time()
-            ep_return, ep_loss = self.run_episode()
+            ep_return, ep_steps = self.run_episode(steps_remaining)
             num_episodes += 1
+            self.steps_done += ep_steps
+            steps_remaining -= ep_steps
+            steps_since_eval += ep_steps
 
-            self.stat_tracker.update(ep_return)
-
+            self.return_tracker.update(ep_return)
+            training_time = time.time()-training_start_time
             self.logger.log("episode", num_episodes)
             self.logger.log("steps_done", self.steps_done)
             self.logger.log("episode_return", ep_return)
-            self.logger.log("episode_loss", ep_loss)
-            self.logger.log("cumulative_return", self.stat_tracker.total)
-            self.logger.log("mean_episode_return", self.stat_tracker.mean)
-            self.logger.log("min_episode_return", self.stat_tracker.min_val)
-            self.logger.log("max_episode_return", self.stat_tracker.max_val)
-            self.logger.log("episode_return_stdev", self.stat_tracker.stdev)
+            self.logger.log("mean_episode_return", self.return_tracker.mean)
+            self.logger.log("min_episode_return", self.return_tracker.min_val)
+            self.logger.log("max_episode_return", self.return_tracker.max_val)
+            self.logger.log("episode_return_stdev", self.return_tracker.stdev)
             self.logger.log("episode_time", time.time()-start_time)
-            self.logger.log("total_training_time",
-                            time.time()-training_start_time)
+            self.logger.log("total_training_time", training_time)
 
             display = num_episodes % 10 == 0
             self.logger.flush(display)
 
+            if steps_since_eval >= hp.EVAL_FREQ or steps_remaining <= 0:
+                print("RUNNING EVALUATION")
+                self.run_eval()
+                steps_since_eval = 0
+                print("EVALUATION RESULTS:")
+                self.eval_logger.log("training_step", self.steps_done)
+                self.eval_logger.log("training_episode", num_episodes)
+                self.eval_logger.log("training_time", training_time)
+                self.eval_logger.flush(True)
+
         self.logger.flush(True)
         print("Training complete")
 
-    def run_episode(self):
+    def run_episode(self, step_limit, eval_run=False):
         xs = self.init_episode()
         done = False
         start_lives = self.env.ale.lives()
 
+        steps = 0
         episode_return = 0
-        episode_loss = 0
+        loss, mean_v, mean_td_error = 0, 0, 0
 
-        while not done and self.steps_done < hp.TRAINING_FRAMES:
+        while not done and steps < step_limit:
             if RENDER:
                 self.env.render()
 
-            a = self.get_action(xs)
+            if eval_run:
+                a = self.get_egreedy_action(xs, hp.EVAL_EPSILON)
+            else:
+                a = self.get_action(xs)
             next_x, r = self.step(a)
             self.img_buffer.push(next_x)
             next_xs = self.img_buffer.get()
@@ -169,23 +200,47 @@ class DQNAgent:
             done = (self.env.ale.game_over() or
                     (self.death_ends_episode and life_lost))
 
-            clipped_r = np.clip(r, *hp.R_CLIP)
-            self.replay.store(xs, a, next_x, clipped_r, done)
+            if not eval_run:
+                clipped_r = np.clip(r, *hp.R_CLIP)
+                self.replay.store(xs, a, next_x, clipped_r, done)
+
+                if self.steps_done % hp.NETWORK_UPDATE_FREQUENCY == 0:
+                    loss, mean_v, mean_td_error = self.optimize()
+
+                if self.steps_done % hp.TARGET_NETWORK_UPDATE_FREQ == 0:
+                    self.update_target_net()
+
+                if self.steps_done % hp.MODEL_SAVE_FREQ == 0:
+                    save_path = self.logger.get_save_path(ext=".pth")
+                    self.dqn.save_DQN(save_path)
+
             xs = next_xs
             episode_return += r
-            self.steps_done += 1
+            steps += 1
 
-            if self.steps_done % hp.NETWORK_UPDATE_FREQUENCY == 0:
-                episode_loss = self.optimize()
+        if not eval_run:
+            self.logger.log("episode_loss", loss)
+            self.logger.log("episode_mean_v", mean_v)
+            self.logger.log("episode_mean_td_error", mean_td_error)
+        return episode_return, steps
 
-            if self.steps_done % hp.TARGET_NETWORK_UPDATE_FREQ == 0:
-                self.update_target_net()
+    def run_eval(self):
+        eval_steps_remaining = hp.EVAL_STEPS
+        eval_tracker = StatTracker()
+        eval_start_time = time.time()
+        while eval_steps_remaining > 0:
+            print(eval_steps_remaining)
+            ep_return, ep_steps = self.run_episode(eval_steps_remaining)
+            eval_steps_remaining -= ep_steps
+            if eval_steps_remaining > 0:
+                eval_tracker.update(ep_return)
 
-            if self.steps_done % hp.MODEL_SAVE_FREQ == 0:
-                save_path = self.logger.get_save_path(ext=".pth")
-                self.dqn.save_DQN(save_path)
-
-        return episode_return, episode_loss
+        self.eval_logger.log("num_eval_episode", eval_tracker.n)
+        self.eval_logger.log("episode_return_mean", eval_tracker.mean)
+        self.eval_logger.log("episode_return_min", eval_tracker.min_val)
+        self.eval_logger.log("episode_return_max", eval_tracker.max_val)
+        self.eval_logger.log("episode_return_stdev", eval_tracker.stdev)
+        self.eval_logger.log("eval_time", time.time() - eval_start_time)
 
     def step(self, a):
         """Perform a step, repeating given action ACTION_REPEAT times, and

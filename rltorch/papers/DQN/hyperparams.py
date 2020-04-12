@@ -1,6 +1,6 @@
 """Hyperparameters from paper """
 
-TESTING = False
+TESTING = True
 
 # Image sizing
 WIDTH = 84
@@ -25,6 +25,10 @@ LEARNING_RATE = 0.00025
 GRADIENT_MOMENTUM = 0.95
 SQUARED_GRADIENT_MOMENTUM = 0.95
 MIN_SQUARED_GRADIENT = 0.01
+GRAD_CLIP = [-1, 1]
+
+# for reward
+R_CLIP = [-1, 1]
 
 # Exploration
 EXPLORATION_SCHEDULE = "Linear"
@@ -51,12 +55,6 @@ LAYER_4 = {"type": "fully_connected",
            "size": 512, "activation": "relu"}
 OUTPUT = {"type": "fully_connected"}
 
-# for reward
-R_CLIP = [-1, 1]
-
-# gradient clip
-GRAD_CLIP = [-1, 1]
-
 # training duration (50 million)
 TRAINING_FRAMES = int(5e7)
 
@@ -64,11 +62,18 @@ TRAINING_FRAMES = int(5e7)
 # Model Save Freq
 MODEL_SAVE_FREQ = int(1e6)
 
+# Evaluation
+EVAL_FREQ = 250000
+EVAL_STEPS = 125000
+EVAL_EPSILON = 0.05
+
 if TESTING:
     print("WARNING: using test hyperparams")
     input("Press any key to continue..")
     REPLAY_SIZE = int(1e5)
     REPLAY_START_SIZE = 1000
+    EVAL_FREQ = 1000
+    EVAL_STEPS = 1000
 
 
 ALL_KWARGS = locals()
