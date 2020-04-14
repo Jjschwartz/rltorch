@@ -1,4 +1,4 @@
-from rltorch.algs.DDQN.agent import DDQNAgent
+from rltorch.algs.q_learning.DDQN.agent import DDQNAgent
 
 
 if __name__ == "__main__":

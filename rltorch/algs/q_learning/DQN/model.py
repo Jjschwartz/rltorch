@@ -27,4 +27,6 @@ class DQN(nn.Module):
 
     def get_action(self, x):
         with torch.no_grad():
-            return self.forward(x).argmax().view(1, 1).item()
+            if len(x.shape) == 1:
+                x = x.view(1, -1)
+            return self.forward(x).max(1)[1]

@@ -1,4 +1,5 @@
 import time
+import gym_maze
 
 from rltorch.algs.q_learning.DQN.agent import DQNAgent
 from rltorch.utils.compile_util import move_dirs_into_single_dir
@@ -15,7 +16,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--replay_size", type=int, default=100000)
-    parser.add_argument("--final_epsilon", type=float, default=0.01)
+    parser.add_argument("--final_epsilon", type=float, default=0.05)
     parser.add_argument("--init_epsilon", type=float, default=1.0)
     parser.add_argument("--exploration", type=int, default=10000)
     parser.add_argument("--gamma", type=float, default=0.99)
@@ -32,7 +33,7 @@ if __name__ == "__main__":
     for i in range(args.runs):
         print(f"\n{'='*60}\nDQN Run {i}\n{'='*60}")
         kwargs["seed"] = seed + i
-        agent = DQNAgent(**vars(args))
+        agent = DQNAgent(**kwargs)
         agent.train()
         save_dirs.append(agent.logger.save_dir)
 

@@ -15,6 +15,9 @@ from .replay import ReplayMemory
 from rltorch.utils.rl_logger import RLLogger
 from rltorch.utils.stat_utils import StatTracker
 
+PAUSE_DISPLAY = False
+DISPLAY_DELAY = 0.01
+
 
 class DQNAgent:
     """The vanilla DQN Agent (with no target network) """
@@ -55,11 +58,13 @@ class DQNAgent:
                        self.num_actions).to(self.device)
         print(self.dqn)
 
-        self.optimizer = optim.Adam(self.dqn.parameters(), lr=kwargs["lr"])
-        # self.optimizer = optim.RMSprop(self.dqn.parameters(),
-        #                                lr=0.00025,
-        #                                alpha=0.95,
-        #                                eps=0.01)
+        # self.optimizer = optim.Adam(self.dqn.parameters(), lr=kwargs["lr"])
+        self.optimizer = optim.RMSprop(self.dqn.parameters(),
+                                       lr=0.00025,
+                                       momentum=0.0,
+                                       alpha=0.95,
+                                       eps=0.01)
+        print(self.optimizer)
         self.loss_fn = nn.MSELoss()
 
         # Training related attributes
@@ -80,6 +85,7 @@ class DQNAgent:
         self.logger.add_header("episode")
         self.logger.add_header("seed")
         self.logger.add_header("steps_done")
+        self.logger.add_header("epsilon")
         self.logger.add_header("episode_return")
         self.logger.add_header("episode_loss")
         self.logger.add_header("episode_mean_v")
@@ -90,18 +96,17 @@ class DQNAgent:
         self.logger.add_header("episode_return_stdev")
         self.logger.add_header("time")
 
-    def get_action(self, x):
+    def get_epsilon(self):
         if self.steps_done < self.start_steps:
-            return random.randint(0, self.num_actions-1)
-
+            return 1.0
         if self.steps_done < self.exploration_steps:
-            epsilon = self.epsilon_schedule[self.steps_done]
-        else:
-            epsilon = self.final_epsilon
+            return self.epsilon_schedule[self.steps_done]
+        return self.final_epsilon
 
-        if random.random() > epsilon:
+    def get_action(self, x):
+        if random.random() > self.get_epsilon():
             x = torch.from_numpy(x).float().to(self.device)
-            return self.dqn.get_action(x)
+            return self.dqn.get_action(x).cpu().item()
         return random.randint(0, self.num_actions-1)
 
     def optimize(self):
@@ -127,9 +132,8 @@ class DQNAgent:
         # optimize the model
         self.optimizer.zero_grad()
         loss.backward()
-        # for param in self.dqn.parameters():
-        # param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
+
         loss_value = loss.item()
         mean_v = target_q_val.mean().item()
         mean_td_error = (target - q_vals).abs().mean().item()
@@ -151,12 +155,16 @@ class DQNAgent:
             self.logger.log("episode", num_episodes)
             self.logger.log("seed", self.seed)
             self.logger.log("steps_done", self.steps_done)
+            self.logger.log("epsilon", self.get_epsilon())
             self.logger.log("time", time.time()-start_time)
 
             display = num_episodes % display_freq == 0
             self.logger.flush(display)
+            if display:
+                self.display_run()
 
         self.logger.flush(True)
+        self.display_run()
         print("Training complete")
 
     def run_episode(self):
@@ -169,6 +177,7 @@ class DQNAgent:
         while not done and self.steps_done < self.training_steps:
             a = self.get_action(o)
             next_o, r, done, _ = self.env.step(a)
+            assert o is not next_o
 
             self.replay.store(o, a, next_o, r, done)
             o = next_o
@@ -192,3 +201,25 @@ class DQNAgent:
         self.logger.log("min_episode_return", self.return_tracker.min_val)
         self.logger.log("max_episode_return", self.return_tracker.max_val)
         self.logger.log("episode_return_stdev", self.return_tracker.stdev)
+
+    def display_run(self, step_limit=1000):
+        print("Running policy")
+        o = self.env.reset()
+        done = False
+        episode_return = 0
+        self.env.render()
+        t = 0
+        while not done and t < step_limit:
+            a = self.get_action(o)
+            o, r, done, _ = self.env.step(a)
+            episode_return += r
+            t += 1
+            self.env.render()
+            if PAUSE_DISPLAY:
+                input(f"Step = o: {o}, a: {a}, r: {r:.4f}, d: {done}")
+            else:
+                time.sleep(DISPLAY_DELAY)
+            if t > 0 and t % int(step_limit // 10) == 0:
+                print(f"Steps taken = {t}")
+        print("Episode done:")
+        print(f"Reward = {episode_return}")

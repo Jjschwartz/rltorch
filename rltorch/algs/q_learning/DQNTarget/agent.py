@@ -55,6 +55,7 @@ class DQNTargetAgent:
         self.target_dqn = DQN(self.obs_dim,
                               kwargs["hidden_sizes"],
                               self.num_actions).to(self.device)
+        self.update_target_net()
         print(self.dqn)
 
         self.optimizer = optim.Adam(self.dqn.parameters(), lr=kwargs["lr"])

@@ -8,8 +8,8 @@ import torch.nn as nn
 import torch.optim as optim
 
 # model and experience replay is unchanged from DQN
-from rltorch.algs.DQN.model import DQN
-from rltorch.algs.DQN.replay import ReplayMemory
+from rltorch.algs.q_learning.DQN.model import DQN
+from rltorch.algs.q_learning.DQN.replay import ReplayMemory
 from rltorch.utils.rl_logger import RLLogger
 
 
@@ -37,8 +37,11 @@ class DDQNAgent:
 
         print(self.dqn)
 
-        # self.optimizer = optim.RMSprop(self.dqn.parameters(), lr=kwargs["lr"])
-        self.optimizer = optim.Adam(self.dqn.parameters(), lr=kwargs["lr"])
+        self.optimizer = optim.RMSprop(self.dqn.parameters(),
+                                       lr=0.00025,
+                                       momentum=0.95,
+                                       eps=0.01)
+        # self.optimizer = optim.Adam(self.dqn.parameters(), lr=kwargs["lr"])
         self.loss_fn = nn.MSELoss()
 
         # Training related attributes
@@ -86,8 +89,9 @@ class DDQNAgent:
         q_vals_raw = self.dqn(s_batch)
         q_vals = q_vals_raw.gather(1, a_batch).squeeze()
 
-        max_next_s_actions = self.dqn(next_s_batch).argmax(1).view(-1, 1)
-        target_q_val = self.dqn(next_s_batch).gather(1, max_next_s_actions).squeeze()
+        max_a_next_s = self.dqn(next_s_batch).argmax(1).view(-1, 1)
+        target_q_val_raw = self.target_dqn(next_s_batch)
+        target_q_val = target_q_val_raw.gather(1, max_a_next_s).squeeze()
         # calculate update target
         target = r_batch + self.discount*(1-d_batch)*target_q_val
 
