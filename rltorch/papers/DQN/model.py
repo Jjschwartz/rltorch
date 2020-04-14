@@ -31,9 +31,10 @@ class DQN(nn.Module):
     def save_DQN(self, file_path):
         torch.save(self.state_dict(), file_path)
 
-    def load_DQN(self, file_path):
-        self.load_state_dict(torch.load(file_path))
+    def load_DQN(self, file_path, device='cpu'):
+        self.load_state_dict(torch.load(file_path,
+                                        map_location=torch.device(device)))
 
     def get_action(self, x):
         with torch.no_grad():
-            return self.forward(x).argmax().view(1, 1)
+            return self.forward(x).max(1)[1]
