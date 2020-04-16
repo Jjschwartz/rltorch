@@ -7,6 +7,9 @@ from rltorch.papers.DQN.hyperparams import AtariHyperparams as hp
 class DDQNAgent(DQNAgent):
 
     def optimize(self):
+        if self.steps_done % hp.NETWORK_UPDATE_FREQUENCY != 0:
+            return None
+
         if self.steps_done < hp.REPLAY_START_SIZE:
             return 0, 0, 0, 0
 
@@ -30,6 +33,11 @@ class DDQNAgent(DQNAgent):
         # clip squared gradient
         # param.grad.data.clamp_(*hp.GRAD_CLIP)
         self.optimizer.step()
+        self.updates_done += 1
+
+        if self.updates_done % hp.TARGET_NETWORK_UPDATE_FREQ == 0:
+            print("updating target_net")
+            self.update_target_net()
 
         loss_value = loss.item()
         mean_v = q_vals_raw.max(1)[0].mean().item()

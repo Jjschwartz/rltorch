@@ -18,11 +18,11 @@ class AtariHyperparams:
     DISCOUNT = 0.99
     MINIBATCH_SIZE = 32
     REPLAY_SIZE = int(1e6)
-    # Number of steps between target network updates
+    # Number of network updates between target network updates
     TARGET_NETWORK_UPDATE_FREQ = 10000
     # Number of times an action is repeated, i.e. number of frames skipped
     ACTION_REPEAT = 4
-    # How many actions are performed before Gradient descent update
+    # Num actions (ignoring repeats) performed before Gradient descent update
     NETWORK_UPDATE_FREQUENCY = 4
 
     # Parameters for network learning
@@ -87,6 +87,9 @@ class AtariHyperparams:
             cls.EVAL_STEPS = 1000
             cls.MODEL_SAVE_FREQ = 2500
             cls.LOG_DISPLAY_FREQ = 1
+        elif mode == "eval":
+            cls.ALGO += "_eval"
+            cls.REPLAY_SIZE = int(1e4)
         elif mode == "ddqn":
             print("Using DDQN hyperparams")
             cls.ALGO = "DDQN"

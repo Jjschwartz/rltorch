@@ -57,6 +57,7 @@ class DQNAgent:
         self.dqn = DQN(self.num_actions).to(self.device)
         self.target_dqn = DQN(self.num_actions).to(self.device)
         self.update_target_net()
+        print(self.dqn)
 
         self.optimizer = optim.RMSprop(self.dqn.parameters(),
                                        lr=hp.LEARNING_RATE,
@@ -74,6 +75,7 @@ class DQNAgent:
                                             hp.FINAL_EXPLORATION_FRAME)
         self.death_ends_episode = death_ends_episode
         self.steps_done = 0
+        self.updates_done = 0
 
     def load_model(self, file_path):
         self.dqn.load_DQN(file_path, device=self.device)
@@ -82,6 +84,7 @@ class DQNAgent:
     def setup_logger(self):
         self.logger.add_header("episode")
         self.logger.add_header("steps_done")
+        self.logger.add_header("updates_done")
         self.logger.add_header("epsilon")
         self.logger.add_header("episode_return")
         self.logger.add_header("episode_loss")
@@ -122,7 +125,18 @@ class DQNAgent:
             return self.dqn.get_action(x).cpu().item()
         return random.randint(0, self.num_actions-1)
 
+    def get_action_and_value(self, x):
+        x = torch.from_numpy(x).to(self.device)
+        # q_val, a = self.dqn(x).cpu().max(1)
+        # return q_val.item(), a.item()
+        q_vals = self.dqn(x).cpu()
+        a = q_vals.max(1)[1]
+        return q_vals.data, a.item()
+
     def optimize(self):
+        if self.steps_done % hp.NETWORK_UPDATE_FREQUENCY != 0:
+            return None
+
         if self.steps_done < hp.REPLAY_START_SIZE:
             return 0, 0, 0, 0
 
@@ -133,7 +147,7 @@ class DQNAgent:
         q_vals = q_vals_raw.gather(1, a_batch).squeeze()
 
         with torch.no_grad():
-            target_q_val, _ = self.target_dqn(next_s_batch).max(1)
+            target_q_val = self.target_dqn(next_s_batch).max(1)[0]
             target = r_batch + hp.DISCOUNT*(1-d_batch)*target_q_val
 
         loss = self.loss_fn(q_vals, target)
@@ -144,6 +158,12 @@ class DQNAgent:
         # clip squared gradient
         # param.grad.data.clamp_(*hp.GRAD_CLIP)
         self.optimizer.step()
+        self.updates_done += 1
+
+        if self.updates_done % hp.TARGET_NETWORK_UPDATE_FREQ == 0:
+            print(f"step={self.steps_done}, updates={self.updates_done}:"
+                  " updating target_net")
+            self.update_target_net()
 
         loss_value = loss.item()
         mean_v = q_vals_raw.max(1)[0].mean().item()
@@ -153,6 +173,11 @@ class DQNAgent:
 
     def update_target_net(self):
         self.target_dqn.load_state_dict(self.dqn.state_dict())
+
+    def save_model(self):
+        print("saving model")
+        save_path = self.logger.get_save_path(ext=".pth")
+        self.dqn.save_DQN(save_path)
 
     def train(self):
         print("Starting training")
@@ -172,6 +197,7 @@ class DQNAgent:
             training_time = time.time()-training_start_time
             self.logger.log("episode", num_episodes)
             self.logger.log("steps_done", self.steps_done)
+            self.logger.log("updates_done", self.updates_done)
             self.logger.log("epsilon", self.get_epsilon())
             self.logger.log("episode_return", ep_return)
             self.logger.log("episode_return_moving_mean",
@@ -216,6 +242,8 @@ class DQNAgent:
         while not done and steps < step_limit:
             if eval_run:
                 a = self.get_egreedy_action(xs, hp.EVAL_EPSILON)
+                # q_vals, a = self.get_action_and_value(xs)
+                # print(f"a={a}, q_val={q_vals}")
             else:
                 a = self.get_action(xs)
 
@@ -235,21 +263,16 @@ class DQNAgent:
                 clipped_r = np.clip(r, *hp.R_CLIP)
                 self.replay.store(xs, a, next_x, clipped_r, done)
 
-                if self.steps_done % hp.NETWORK_UPDATE_FREQUENCY == 0:
-                    loss, mean_v, max_v, mean_td_error = self.optimize()
+                result = self.optimize()
+                if result is not None:
+                    loss, mean_v, max_v, mean_td_error = result
                     losses.append(loss)
                     mean_values.append(mean_v)
                     overall_max_v = max(overall_max_v, max_v)
                     mean_td_errors.append(mean_td_error)
 
-                if self.steps_done % hp.TARGET_NETWORK_UPDATE_FREQ == 0:
-                    print("updating target_net")
-                    self.update_target_net()
-
                 if self.steps_done % hp.MODEL_SAVE_FREQ == 0:
-                    print("saving model")
-                    save_path = self.logger.get_save_path(ext=".pth")
-                    self.dqn.save_DQN(save_path)
+                    self.save_model()
 
             xs = next_xs
             episode_return += r

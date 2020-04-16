@@ -1,5 +1,6 @@
 import rltorch.utils.file_utils as futils
 from rltorch.papers.DQN.dqn_agent import DQNAgent
+from rltorch.papers.DQN.hyperparams import AtariHyperparams
 
 
 if __name__ == "__main__":
@@ -11,6 +12,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config = futils.load_yaml(args.config)
+    AtariHyperparams.set_mode("eval")
     agent = DQNAgent(args.env_name)
     agent.load_model(args.model)
     agent.run_eval(render=True)
