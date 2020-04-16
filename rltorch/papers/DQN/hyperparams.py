@@ -4,7 +4,7 @@
 class AtariHyperparams:
 
     ALGO = "DQN"
-    SEED = 1
+    SEED = 2
 
     LOG_DISPLAY_FREQ = 10
 
@@ -74,7 +74,8 @@ class AtariHyperparams:
     EVAL_EPSILON = 0.05
 
     @classmethod
-    def set_mode(cls, mode='dqn'):
+    def set_mode(cls, mode='dqn', seed=0):
+        cls.SEED = seed
         if mode == "testing":
             print("WARNING: using test hyperparams")
             input("Press any key to continue..")
@@ -93,6 +94,9 @@ class AtariHyperparams:
         elif mode == "ddqn":
             print("Using DDQN hyperparams")
             cls.ALGO = "DDQN"
+        elif mode == "ddqn-tuned":
+            print("Using DDQN-Tuned hyperparams")
+            cls.ALGO = "DDQN-Tuned"
             cls.TARGET_NETWORK_UPDATE_FREQ = 30000
             cls.FINAL_EXPLORATION = 0.01
             cls.EVAL_EPSILON = 0.001
