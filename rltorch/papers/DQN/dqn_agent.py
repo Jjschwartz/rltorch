@@ -63,7 +63,10 @@ class DQNAgent:
                                        momentum=hp.GRADIENT_MOMENTUM,
                                        eps=hp.MIN_SQUARED_GRADIENT)
         print(self.optimizer)
-        self.loss_fn = nn.MSELoss()
+        # self.loss_fn = nn.MSELoss()
+        # the huber loss handles error clipping as described
+        # in orginal paper
+        self.loss_fn = nn.SmoothL1Loss()
 
         # Training related attributes
         self.epsilon_schedule = np.linspace(hp.INITIAL_EXPLORATION,
@@ -128,20 +131,22 @@ class DQNAgent:
 
         q_vals_raw = self.dqn(s_batch)
         q_vals = q_vals_raw.gather(1, a_batch).squeeze()
-        target_q_val, _ = self.target_dqn(next_s_batch).max(1)
-        target = r_batch + hp.DISCOUNT*(1-d_batch)*target_q_val
+
+        with torch.no_grad():
+            target_q_val, _ = self.target_dqn(next_s_batch).max(1)
+            target = r_batch + hp.DISCOUNT*(1-d_batch)*target_q_val
+
         loss = self.loss_fn(q_vals, target)
 
         self.optimizer.zero_grad()
         loss.backward()
-        for param in self.dqn.parameters():
-            # clip squared gradient
-            param.grad.data.clamp_(*hp.GRAD_CLIP)
+        # for param in self.dqn.parameters():
+        # clip squared gradient
+        # param.grad.data.clamp_(*hp.GRAD_CLIP)
         self.optimizer.step()
 
         loss_value = loss.item()
-        q_vals_max = q_vals_raw.max(1)[0]
-        mean_v = q_vals_max.mean().item()
+        mean_v = q_vals_raw.max(1)[0].mean().item()
         max_v = q_vals.max().item()
         mean_td_error = (target - q_vals).abs().mean().item()
         return loss_value, mean_v, max_v, mean_td_error
