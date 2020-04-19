@@ -9,7 +9,7 @@ class ReplayMemory:
         self.device = device
         self.h = history_len
         self.s_dims = (self.h, width, height)
-        # store as float16 to save space, then we conver to 32 when sampling
+        # store as float16 to save space, then we convert to 32 when sampling
         self.s_buf = np.zeros((capacity, *self.s_dims), dtype=np.float16)
         self.a_buf = np.zeros((capacity, 1), dtype=np.long)
         self.next_s_buf = np.zeros((capacity, 1, width, height),

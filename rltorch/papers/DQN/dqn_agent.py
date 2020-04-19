@@ -64,10 +64,10 @@ class DQNAgent:
                                        momentum=hp.GRADIENT_MOMENTUM,
                                        eps=hp.MIN_SQUARED_GRADIENT)
         print(self.optimizer)
-        # self.loss_fn = nn.MSELoss()
+        self.loss_fn = nn.MSELoss()
         # the huber loss handles error clipping as described
         # in orginal paper
-        self.loss_fn = nn.SmoothL1Loss()
+        # self.loss_fn = nn.SmoothL1Loss()
 
         # Training related attributes
         self.epsilon_schedule = np.linspace(hp.INITIAL_EXPLORATION,
@@ -127,8 +127,6 @@ class DQNAgent:
 
     def get_action_and_value(self, x):
         x = torch.from_numpy(x).to(self.device)
-        # q_val, a = self.dqn(x).cpu().max(1)
-        # return q_val.item(), a.item()
         q_vals = self.dqn(x).cpu()
         a = q_vals.max(1)[1]
         return q_vals.data, a.item()
@@ -328,14 +326,18 @@ class DQNAgent:
             s, r, d, info = self.env.step(a)
             reward += r
             tmp_buffer.append(s)
-        x = self.img_processor.process_frames(*tmp_buffer[:-2])
+            if d:
+                break
+        if len(tmp_buffer) == 1:
+            tmp_buffer.append(tmp_buffer[0])
+        x = self.img_processor.process_frames(*tmp_buffer[-2:])
         return x, reward
 
     def init_episode(self):
         """Resets game, performs noops and returns first processed state """
         self.env.reset()
         self.img_buffer.clear()
-        num_noops = random.randint(0, hp.NO_OP_MAX)
+        num_noops = random.randint(1, hp.NO_OP_MAX)
         for _ in range(num_noops):
             self.env.step(0)
         # ensure history buffer is full
