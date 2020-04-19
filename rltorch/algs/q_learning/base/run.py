@@ -1,8 +1,6 @@
-import time
 import argparse
 
 import rltorch.utils.rl_logger as rllog
-from rltorch.utils.compile_util import move_dirs_into_single_dir
 
 
 def get_deep_q_argparse():
