@@ -62,7 +62,7 @@ class DQNAgent:
         #                                lr=hp.LEARNING_RATE,
         #                                momentum=hp.GRADIENT_MOMENTUM,
         #                                eps=hp.MIN_SQUARED_GRADIENT)
-        self.optimizer = optim.Adam(self.dqn_parameters(),
+        self.optimizer = optim.Adam(self.dqn.parameters(),
                                     lr=hp.LEARNING_RATE)
         print(self.optimizer)
         self.loss_fn = nn.MSELoss()
