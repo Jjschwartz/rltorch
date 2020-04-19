@@ -56,13 +56,14 @@ class DQNAgent:
         # Neural Network related attributes
         self.dqn = DQN(self.num_actions).to(self.device)
         self.target_dqn = DQN(self.num_actions).to(self.device)
-        self.update_target_net()
         print(self.dqn)
 
-        self.optimizer = optim.RMSprop(self.dqn.parameters(),
-                                       lr=hp.LEARNING_RATE,
-                                       momentum=hp.GRADIENT_MOMENTUM,
-                                       eps=hp.MIN_SQUARED_GRADIENT)
+        # self.optimizer = optim.RMSprop(self.dqn.parameters(),
+        #                                lr=hp.LEARNING_RATE,
+        #                                momentum=hp.GRADIENT_MOMENTUM,
+        #                                eps=hp.MIN_SQUARED_GRADIENT)
+        self.optimizer = optim.Adam(self.dqn_parameters(),
+                                    lr=hp.LEARNING_RATE)
         print(self.optimizer)
         self.loss_fn = nn.MSELoss()
         # the huber loss handles error clipping as described
@@ -152,9 +153,9 @@ class DQNAgent:
 
         self.optimizer.zero_grad()
         loss.backward()
-        # for param in self.dqn.parameters():
-        # clip squared gradient
-        # param.grad.data.clamp_(*hp.GRAD_CLIP)
+        for param in self.dqn.parameters():
+            # clip squared gradient
+            param.grad.data.clamp_(*hp.GRAD_CLIP)
         self.optimizer.step()
         self.updates_done += 1
 
