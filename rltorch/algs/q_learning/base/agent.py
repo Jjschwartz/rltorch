@@ -34,8 +34,12 @@ class QLearningBaseAgent:
         logger_name = alg_name
         if "exp_name" in kwargs and kwargs["exp_name"]:
             logger_name = kwargs["exp_name"]
-        self.logger = RLLogger(self.env_name, logger_name)
-        self.eval_logger = RLLogger(self.env_name, f"{logger_name}_eval")
+        parent_dir = kwargs.get("parent_dir", None)
+        self.logger = RLLogger(self.env_name, logger_name, parent_dir)
+        eval_parent_dir = f"{parent_dir}_eval" if parent_dir else None
+        self.eval_logger = RLLogger(self.env_name,
+                                    f"{logger_name}_eval",
+                                    eval_parent_dir)
         self.logger.save_config(kwargs)
         self.setup_logger()
         self.return_tracker = StatTracker()
@@ -58,9 +62,11 @@ class QLearningBaseAgent:
         self.eval_freq = kwargs["eval_freq"]
         self.eval_steps = kwargs["eval_steps"]
         self.eval_epsilon = kwargs["eval_epsilon"]
+        self.evals_done = 0
 
         # other attributes
         self.model_save_freq = kwargs["model_save_freq"]
+        self.render_last = kwargs["render_last"]
 
     def setup_logger(self):
         self.logger.add_header("episode")
@@ -81,6 +87,7 @@ class QLearningBaseAgent:
         self.logger.add_header("episode_time")
         self.logger.add_header("total_training_time")
 
+        self.eval_logger.add_header("eval_num")
         self.eval_logger.add_header("training_step")
         self.eval_logger.add_header("training_episode")
         self.eval_logger.add_header("training_time")
@@ -151,7 +158,7 @@ class QLearningBaseAgent:
             if steps_since_eval >= self.eval_freq or \
                training_steps_remaining <= 0:
                 # render last episode
-                render = training_steps_remaining <= 0
+                render = training_steps_remaining <= 0 and self.render_last
                 eval_logger_kwargs = {"training_step": self.steps_done,
                                       "training_episode": num_episodes,
                                       "training_time": training_time}
@@ -244,8 +251,12 @@ class QLearningBaseAgent:
             if eval_steps_remaining > 0:
                 eval_tracker.update(ep_return)
 
+        if render:
+            self.env.close()
+
         if eval_logger_kwargs is None:
             eval_logger_kwargs = {}
+        self.eval_logger.log("eval_num", self.evals_done)
         self.eval_logger.log("training_step",
                              eval_logger_kwargs.get("training_step", 0))
         self.eval_logger.log("training_episode",
@@ -261,3 +272,4 @@ class QLearningBaseAgent:
 
         print("EVALUATION RESULTS:")
         self.eval_logger.flush(True)
+        self.evals_done += 1

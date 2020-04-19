@@ -14,20 +14,30 @@ CONFIG_FILE = f"{CONFIG_FILE_NAME}.{CONFIG_FILE_EXT}"
 RESULTS_FILE = f"{RESULTS_FILE_NAME}.{RESULTS_FILE_EXT}"
 
 
+def get_exp_name(env_name, alg):
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    return f"{alg}_{env_name}_{ts}"
+
+
 class RLLogger:
 
-    def __init__(self, env_name, alg=None):
+    def __init__(self, env_name, alg=None, parent_dir=None):
         self.env_name = env_name
         self.alg = alg
+        self.parent_dir = parent_dir
         self.setup_save_file()
         self.headers = []
         self.log_buffer = dict()
         self.headers_written = False
 
     def setup_save_file(self):
-        ts = time.strftime("%Y%m%d-%H%M")
-        self.save_dir = osp.join(DEFAULT_DATA_DIR,
-                                 f"{self.alg}_{self.env_name}_{ts}")
+        exp_name = get_exp_name(self.alg, self.env_name)
+        if self.parent_dir:
+            parent_dir = osp.join(DEFAULT_DATA_DIR, self.parent_dir)
+            fu.make_dir(parent_dir)
+        else:
+            parent_dir = DEFAULT_DATA_DIR
+        self.save_dir = osp.join(parent_dir, exp_name)
         fu.make_dir(self.save_dir)
         self.save_file_path = fu.generate_file_path(self.save_dir,
                                                     RESULTS_FILE_NAME,
@@ -35,8 +45,7 @@ class RLLogger:
 
     def get_save_path(self, filename=None, ext=None):
         if filename is None:
-            ts = time.strftime("%Y%m%d-%H%M")
-            filename = f"{self.alg}_{self.env_name}_{ts}"
+            filename = get_exp_name(self.env_name, self.alg)
         return fu.generate_file_path(self.save_dir, filename, ext)
 
     def save_config(self, cfg):
