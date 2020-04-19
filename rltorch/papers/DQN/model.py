@@ -23,7 +23,7 @@ class DQN(nn.Module):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = x.view(-1, 64*7*7)
+        x = x.view(x.size(0), -1)
         x = F.relu(self.fc1(x))
         x = self.out(x)
         return x
