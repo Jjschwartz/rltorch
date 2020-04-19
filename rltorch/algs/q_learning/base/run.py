@@ -1,6 +1,5 @@
 import time
 import argparse
-import gym_maze
 
 from rltorch.utils.compile_util import move_dirs_into_single_dir
 
