@@ -29,7 +29,7 @@ class DQNAgent(QLearningBaseAgent):
 
         self.optimizer = optim.Adam(self.dqn.parameters(), lr=self.lr)
         print(self.optimizer)
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = nn.SmoothL1Loss()
 
         # replay
         self.replay = ReplayMemory(kwargs["replay_size"],

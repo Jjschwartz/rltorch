@@ -32,10 +32,9 @@ class DQNTargetAgent(DQNAgent):
         # get target q val = max val of next state
         with torch.no_grad():
             target_q_val_raw = self.target_dqn(next_s_batch)
-            target_q_val, _ = target_q_val_raw.max(1)
+            target_q_val = target_q_val_raw.max(1)[0]
             target = r_batch + self.discount*(1-d_batch)*target_q_val
 
-        # calculate loss
         loss = self.loss_fn(q_vals, target)
 
         # optimize the model
