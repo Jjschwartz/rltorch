@@ -8,8 +8,12 @@ https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-
 - Pillow Python library
 https://pillow.readthedocs.io/en/latest/reference/Image.html
 """
+import time
 import numpy as np
 from PIL import Image
+import multiprocessing as mp
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 
 class ImageProcessor:
@@ -76,3 +80,53 @@ class ImageHistory:
 
     def clear(self):
         self.size, self.ptr = 0, 0
+
+
+def run_animation(args):
+    """To be run on seperate process """
+    img_queue, img_dims, img_min, img_max = args
+    fig = plt.figure()
+    tmp_img = Image.fromarray(np.ones((img_dims)))
+    im = plt.imshow(tmp_img, cmap='gray', vmin=0, vmax=255)
+
+    def _anim_init():
+        im.set_data(tmp_img)
+        return [im]
+
+    def _anim_func(i):
+        while img_queue.empty():
+            time.sleep(0.1)
+        x = Image.fromarray(img_queue.get())
+        im.set_array(x)
+        img_queue.task_done()
+        return [im]
+
+    anim = FuncAnimation(fig,
+                         _anim_func,
+                         init_func=_anim_init,
+                         interval=1,
+                         blit=True)
+    plt.show()
+
+
+class ImageAnimation:
+
+    def __init__(self, img_dims=(84, 84), img_min=0, img_max=255):
+        self.queue = mp.JoinableQueue()
+        self.anim_proc = None
+        self.img_dims = img_dims
+        self.img_min = img_min
+        self.img_max = img_max
+
+    def start(self):
+        args = (self.queue, self.img_dims, self.img_min, self.img_max)
+        self.anim_proc = mp.Process(target=run_animation,
+                                    args=(args,))
+        self.anim_proc.start()
+
+    def add_image(self, x):
+        self.queue.put(x)
+
+    def stop(self):
+        self.queue.join()
+        self.anim_proc.join()

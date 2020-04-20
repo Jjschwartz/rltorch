@@ -70,12 +70,11 @@ class DQNAgent(QLearningBaseAgent):
         self.optimizer.step()
         self.updates_done += 1
 
-        loss_value = loss.item()
         q_vals_max = q_vals_raw.max(1)[0]
         mean_v = q_vals_max.mean().item()
         max_v = q_vals.max().item()
         mean_td_error = (target - q_vals).abs().mean().item()
-        return loss_value, mean_v, max_v, mean_td_error
+        return loss.item(), mean_v, max_v, mean_td_error
 
     def save_model(self):
         save_path = self.logger.get_save_path(ext=".pth")

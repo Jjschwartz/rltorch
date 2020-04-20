@@ -57,8 +57,11 @@ class RLLogger:
         self.headers.append(header)
 
     def log(self, header, value):
-        assert header in self.headers, \
-            "Cannot log value of new header, use add_header first."
+        if not self.headers_written and header not in self.headers:
+            self.headers.append(header)
+        else:
+            assert header in self.headers, \
+                "Cannot log value of new header, use add_header first."
         self.log_buffer[header] = value
 
     def flush(self, display=False):

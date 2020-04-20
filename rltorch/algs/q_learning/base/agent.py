@@ -41,7 +41,6 @@ class QLearningBaseAgent:
                                     f"{logger_name}_eval",
                                     eval_parent_dir)
         self.logger.save_config(kwargs)
-        self.setup_logger()
         self.return_tracker = StatTracker()
 
         # Training related attributes
@@ -67,36 +66,6 @@ class QLearningBaseAgent:
         # other attributes
         self.model_save_freq = kwargs["model_save_freq"]
         self.render_last = kwargs["render_last"]
-
-    def setup_logger(self):
-        self.logger.add_header("episode")
-        self.logger.add_header("seed")
-        self.logger.add_header("steps_done")
-        self.logger.add_header("updates_done")
-        self.logger.add_header("epsilon")
-        self.logger.add_header("episode_return")
-        self.logger.add_header("episode_loss")
-        self.logger.add_header("episode_mean_v")
-        self.logger.add_header("episode_max_v")
-        self.logger.add_header("episode_mean_td_error")
-        self.logger.add_header("episode_return_moving_mean")
-        self.logger.add_header("episode_return_moving_min")
-        self.logger.add_header("episode_return_moving_max")
-        self.logger.add_header("episode_return_moving_stdev")
-        self.logger.add_header("episode_return_overall_max")
-        self.logger.add_header("episode_time")
-        self.logger.add_header("total_training_time")
-
-        self.eval_logger.add_header("eval_num")
-        self.eval_logger.add_header("training_step")
-        self.eval_logger.add_header("training_episode")
-        self.eval_logger.add_header("training_time")
-        self.eval_logger.add_header("num_eval_episode")
-        self.eval_logger.add_header("episode_return_mean")
-        self.eval_logger.add_header("episode_return_min")
-        self.eval_logger.add_header("episode_return_max")
-        self.eval_logger.add_header("episode_return_stdev")
-        self.eval_logger.add_header("eval_time")
 
     def get_epsilon(self):
         if self.steps_done < self.start_steps:
@@ -228,7 +197,10 @@ class QLearningBaseAgent:
             steps += 1
 
         if not eval_run:
-            self.logger.log("episode_loss", np.array(losses).mean())
+            losses = np.array(losses)
+            self.logger.log("episode_mean_loss", losses.mean())
+            self.logger.log("episode_loss_max", losses.max())
+            self.logger.log("episode_loss_min", losses.min())
             self.logger.log("episode_mean_v", np.array(mean_values).mean())
             self.logger.log("episode_max_v", overall_max_v)
             self.logger.log("episode_mean_td_error",

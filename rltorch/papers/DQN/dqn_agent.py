@@ -6,7 +6,6 @@ from pprint import pprint
 from gym.envs.atari import AtariEnv
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 
 from .model import DQN
@@ -16,7 +15,7 @@ from rltorch.utils.stat_utils import StatTracker
 from .preprocess import ImageProcessor, ImageHistory
 from rltorch.papers.DQN.hyperparams import AtariHyperparams as hp
 
-RENDER = False
+RENDER_PAUSE = 0.01
 
 
 class DQNAgent:
@@ -50,7 +49,6 @@ class DQNAgent:
         self.logger = RLLogger(self.env_name, f"{hp.ALGO}_atari")
         self.logger.save_config(config)
         self.eval_logger = RLLogger(self.env_name, f"{hp.ALGO}_atari_eval")
-        self.setup_logger()
         self.return_tracker = StatTracker()
 
         # Neural Network related attributes
@@ -58,17 +56,12 @@ class DQNAgent:
         self.target_dqn = DQN(self.num_actions).to(self.device)
         print(self.dqn)
 
-        # self.optimizer = optim.RMSprop(self.dqn.parameters(),
-        #                                lr=hp.LEARNING_RATE,
-        #                                momentum=hp.GRADIENT_MOMENTUM,
-        #                                eps=hp.MIN_SQUARED_GRADIENT)
-        self.optimizer = optim.Adam(self.dqn.parameters(),
-                                    lr=hp.LEARNING_RATE)
+        self.optimizer = optim.RMSprop(self.dqn.parameters(),
+                                       lr=hp.LEARNING_RATE,
+                                       momentum=hp.GRADIENT_MOMENTUM,
+                                       eps=hp.MIN_SQUARED_GRADIENT)
+
         print(self.optimizer)
-        self.loss_fn = nn.MSELoss()
-        # the huber loss handles error clipping as described
-        # in orginal paper
-        # self.loss_fn = nn.SmoothL1Loss()
 
         # Training related attributes
         self.epsilon_schedule = np.linspace(hp.INITIAL_EXPLORATION,
@@ -81,34 +74,6 @@ class DQNAgent:
     def load_model(self, file_path):
         self.dqn.load_DQN(file_path, device=self.device)
         self.update_target_net()
-
-    def setup_logger(self):
-        self.logger.add_header("episode")
-        self.logger.add_header("steps_done")
-        self.logger.add_header("updates_done")
-        self.logger.add_header("epsilon")
-        self.logger.add_header("episode_return")
-        self.logger.add_header("episode_loss")
-        self.logger.add_header("episode_mean_v")
-        self.logger.add_header("episode_max_v")
-        self.logger.add_header("episode_mean_td_error")
-        self.logger.add_header("episode_return_moving_mean")
-        self.logger.add_header("episode_return_moving_min")
-        self.logger.add_header("episode_return_moving_max")
-        self.logger.add_header("episode_return_moving_stdev")
-        self.logger.add_header("episode_return_overall_max")
-        self.logger.add_header("episode_time")
-        self.logger.add_header("total_training_time")
-
-        self.eval_logger.add_header("training_step")
-        self.eval_logger.add_header("training_episode")
-        self.eval_logger.add_header("training_time")
-        self.eval_logger.add_header("num_eval_episode")
-        self.eval_logger.add_header("episode_return_mean")
-        self.eval_logger.add_header("episode_return_min")
-        self.eval_logger.add_header("episode_return_max")
-        self.eval_logger.add_header("episode_return_stdev")
-        self.eval_logger.add_header("eval_time")
 
     def get_action(self, x):
         return self.get_egreedy_action(x, self.get_epsilon())
@@ -149,28 +114,26 @@ class DQNAgent:
             target_q_val = self.target_dqn(next_s_batch).max(1)[0]
             target = r_batch + hp.DISCOUNT*(1-d_batch)*target_q_val
 
-        loss = self.loss_fn(q_vals, target)
+        loss = target - q_vals
+        loss = loss.clamp(*hp.GRAD_CLIP)
+        loss = loss.pow(2).mean()
 
         self.optimizer.zero_grad()
         loss.backward()
-        for param in self.dqn.parameters():
-            # clip squared gradient
-            param.grad.data.clamp_(*hp.GRAD_CLIP)
         self.optimizer.step()
         self.updates_done += 1
 
         if self.updates_done % hp.TARGET_NETWORK_UPDATE_FREQ == 0:
-            print(f"step={self.steps_done}, updates={self.updates_done}:"
-                  " updating target_net")
             self.update_target_net()
 
-        loss_value = loss.item()
         mean_v = q_vals_raw.max(1)[0].mean().item()
         max_v = q_vals.max().item()
         mean_td_error = (target - q_vals).abs().mean().item()
-        return loss_value, mean_v, max_v, mean_td_error
+        return loss.item(), mean_v, max_v, mean_td_error
 
     def update_target_net(self):
+        print(f"step={self.steps_done}, updates={self.updates_done}:"
+              " updating target_net")
         self.target_dqn.load_state_dict(self.dqn.state_dict())
 
     def save_model(self):
@@ -241,8 +204,6 @@ class DQNAgent:
         while not done and steps < step_limit:
             if eval_run:
                 a = self.get_egreedy_action(xs, hp.EVAL_EPSILON)
-                # q_vals, a = self.get_action_and_value(xs)
-                # print(f"a={a}, q_val={q_vals}")
             else:
                 a = self.get_action(xs)
 
@@ -256,6 +217,7 @@ class DQNAgent:
 
             if render:
                 self.env.render()
+                time.sleep(RENDER_PAUSE)
 
             if not eval_run:
                 self.steps_done += 1
@@ -278,7 +240,10 @@ class DQNAgent:
             steps += 1
 
         if not eval_run:
-            self.logger.log("episode_loss", np.array(losses).mean())
+            losses = np.array(losses)
+            self.logger.log("episode_mean_loss", losses.mean())
+            self.logger.log("episode_loss_max", losses.max())
+            self.logger.log("episode_loss_min", losses.min())
             self.logger.log("episode_mean_v", np.array(mean_values).mean())
             self.logger.log("episode_max_v", overall_max_v)
             self.logger.log("episode_mean_td_error",

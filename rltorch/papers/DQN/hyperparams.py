@@ -88,6 +88,7 @@ class AtariHyperparams:
             cls.EVAL_STEPS = 1000
             cls.MODEL_SAVE_FREQ = 2500
             cls.LOG_DISPLAY_FREQ = 1
+            cls.MINIBATCH_SIZE = 4
         elif mode == "eval":
             cls.ALGO += "_eval"
             cls.REPLAY_SIZE = int(1e4)
