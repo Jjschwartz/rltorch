@@ -49,9 +49,9 @@ class ImageProcessor:
             input("Press any key..")
 
     def show_stacked(self, x_stacked, wait_for_user=True):
-        print(x_stacked.shape)
-        for i in range(x_stacked.shape[1]):
-            self.show_image(x_stacked[0][i], False)
+        for i in range(x_stacked.shape[0]):
+            self.show_image(x_stacked[i], False)
+            time.sleep(0.01)
         if wait_for_user:
             input("Press any key..")
 

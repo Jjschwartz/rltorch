@@ -6,6 +6,7 @@ from pprint import pprint
 from gym.envs.atari import AtariEnv
 
 import torch
+import torch.nn as nn
 import torch.optim as optim
 
 from .model import DQN
@@ -62,6 +63,7 @@ class DQNAgent:
                                        eps=hp.MIN_SQUARED_GRADIENT)
 
         print(self.optimizer)
+        self.loss_fn = nn.SmoothL1Loss()
 
         # Training related attributes
         self.epsilon_schedule = np.linspace(hp.INITIAL_EXPLORATION,
@@ -114,9 +116,7 @@ class DQNAgent:
             target_q_val = self.target_dqn(next_s_batch).max(1)[0]
             target = r_batch + hp.DISCOUNT*(1-d_batch)*target_q_val
 
-        loss = target - q_vals
-        loss = loss.clamp(*hp.GRAD_CLIP)
-        loss = loss.pow(2).mean()
+        loss = self.loss_fn(target, q_vals)
 
         self.optimizer.zero_grad()
         loss.backward()

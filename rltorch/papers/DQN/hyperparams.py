@@ -19,7 +19,8 @@ class AtariHyperparams:
     MINIBATCH_SIZE = 32
     REPLAY_SIZE = int(1e6)
     # Number of network updates between target network updates
-    TARGET_NETWORK_UPDATE_FREQ = 10000
+    # TARGET_NETWORK_UPDATE_FREQ = 10000
+    TARGET_NETWORK_UPDATE_FREQ = 2500
     # Number of times an action is repeated, i.e. number of frames skipped
     ACTION_REPEAT = 4
     # Num actions (ignoring repeats) performed before Gradient descent update
@@ -88,7 +89,7 @@ class AtariHyperparams:
             cls.EVAL_STEPS = 1000
             cls.MODEL_SAVE_FREQ = 2500
             cls.LOG_DISPLAY_FREQ = 1
-            cls.MINIBATCH_SIZE = 4
+            cls.MINIBATCH_SIZE = 12
         elif mode == "eval":
             cls.ALGO += "_eval"
             cls.REPLAY_SIZE = int(1e4)

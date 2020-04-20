@@ -20,14 +20,13 @@ class DDQNAgent(DQNAgent):
         q_vals = q_vals_raw.gather(1, a_batch).squeeze()
 
         with torch.no_grad():
-            max_a_next_s = self.dqn(next_s_batch).max(1)[1].unsqueeze(1)
+            next_s_q_vals = self.dqn(next_s_batch)
+            max_a_next_s = next_s_q_vals.max(1)[1].unsqueeze(1)
             target_q_val_raw = self.target_dqn(next_s_batch)
             target_q_vals = target_q_val_raw.gather(1, max_a_next_s).squeeze()
             target = r_batch + (1-d_batch)*hp.DISCOUNT*target_q_vals
 
-        loss = target - q_vals
-        loss = loss.clamp(*hp.GRAD_CLIP)
-        loss = loss.pow(2).mean()
+        loss = self.loss_fn(target, q_vals)
 
         self.optimizer.zero_grad()
         loss.backward()
