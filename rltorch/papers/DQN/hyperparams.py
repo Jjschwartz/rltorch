@@ -14,6 +14,7 @@ class AtariHyperparams:
     # Number of most recent frames given as input to Q-network
     AGENT_HISTORY = 4
     STATE_DIMS = (AGENT_HISTORY, WIDTH, HEIGHT)
+    NORMALIZE = False
 
     DISCOUNT = 0.99
     MINIBATCH_SIZE = 32

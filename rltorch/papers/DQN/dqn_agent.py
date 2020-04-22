@@ -32,8 +32,8 @@ class DQNAgent:
         np.random.seed(hp.SEED)
 
         self.env_name = env_name
-        # self.env = AtariEnv(game=env_name, frameskip=1, obs_type="image")
-        self.env = AtariPreprocessing(gym.make(env_name))
+        self.env = AtariPreprocessing(gym.make(env_name),
+                                      scale_obs=hp.NORMALIZE)
         self.num_actions = self.env.action_space.n
 
         self.device = torch.device("cuda"
