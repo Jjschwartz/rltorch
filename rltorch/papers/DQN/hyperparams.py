@@ -1,4 +1,5 @@
 """Hyperparameters from paper """
+import numpy as np
 
 
 class AtariHyperparams:
@@ -14,10 +15,14 @@ class AtariHyperparams:
     # Number of most recent frames given as input to Q-network
     AGENT_HISTORY = 4
     STATE_DIMS = (AGENT_HISTORY, WIDTH, HEIGHT)
+    NORMALIZE = True
 
     DISCOUNT = 0.99
     MINIBATCH_SIZE = 32
     REPLAY_SIZE = int(1e6)
+    REPLAY_S_DTYPE = np.uint8
+    if NORMALIZE:
+        REPLAY_S_DTYPE = np.float16
     # Number of network updates between target network updates
     # TARGET_NETWORK_UPDATE_FREQ = 10000
     TARGET_NETWORK_UPDATE_FREQ = 2500
