@@ -1,9 +1,10 @@
+import gym
 import time
 import math
 import random
 import numpy as np
 from pprint import pprint
-from gym.envs.atari import AtariEnv
+from gym.wrappers import AtariPreprocessing
 
 import torch
 import torch.nn as nn
@@ -22,6 +23,7 @@ RENDER_PAUSE = 0.01
 class DQNAgent:
 
     def __init__(self, env_name, death_ends_episode=True):
+        assert "NoFrameskip-v4" in env_name
         print(f"\n{hp.ALGO} for Atari: {env_name}")
         config = hp.get_all_hyperparams()
         pprint(config)
@@ -30,7 +32,8 @@ class DQNAgent:
         np.random.seed(hp.SEED)
 
         self.env_name = env_name
-        self.env = AtariEnv(game=env_name, frameskip=1, obs_type="image")
+        # self.env = AtariEnv(game=env_name, frameskip=1, obs_type="image")
+        self.env = AtariPreprocessing(gym.make(env_name))
         self.num_actions = self.env.action_space.n
 
         self.device = torch.device("cuda"
@@ -191,7 +194,6 @@ class DQNAgent:
     def run_episode(self, step_limit, eval_run=False, render=False):
         xs = self.init_episode()
         done = False
-        start_lives = self.env.ale.lives()
 
         steps = 0
         episode_return = 0
@@ -207,13 +209,9 @@ class DQNAgent:
             else:
                 a = self.get_action(xs)
 
-            next_x, r = self.step(a)
+            next_x, r, done = self.step(a)
             self.img_buffer.push(next_x)
             next_xs = self.img_buffer.get()
-
-            life_lost = self.env.ale.lives() < start_lives
-            done = (self.env.ale.game_over() or
-                    (self.death_ends_episode and life_lost))
 
             if render:
                 self.env.render()
@@ -286,28 +284,15 @@ class DQNAgent:
     def step(self, a):
         """Perform a step, repeating given action ACTION_REPEAT times, and
         return processed image and reward """
-        reward = 0.0
-        tmp_buffer = []
-        for i in range(hp.ACTION_REPEAT):
-            s, r, d, info = self.env.step(a)
-            reward += r
-            tmp_buffer.append(s)
-            if d:
-                break
-        if len(tmp_buffer) == 1:
-            tmp_buffer.append(tmp_buffer[0])
-        x = self.img_processor.process_frames(*tmp_buffer[-2:])
-        return x, reward
+        x, r, d, _ = self.env.step(a)
+        return x, r, d
 
     def init_episode(self):
         """Resets game, performs noops and returns first processed state """
-        self.env.reset()
-        self.img_buffer.clear()
-        num_noops = random.randint(1, hp.NO_OP_MAX)
-        for _ in range(num_noops):
-            self.env.step(0)
-        # ensure history buffer is full
-        for _ in range(hp.AGENT_HISTORY):
-            x, _ = self.step(0)
+        x = self.env.reset()
+        self.img_buffer.push(x)
+        # fill buffer
+        for _ in range(hp.AGENT_HISTORY-1):
+            x, _, _ = self.step(0)
             self.img_buffer.push(x)
         return self.img_buffer.get()
