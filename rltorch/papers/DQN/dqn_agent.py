@@ -44,7 +44,9 @@ class DQNAgent:
                                    hp.HEIGHT,
                                    self.device)
         self.replay.display_memory_usage()
-        self.img_processor = ImageProcessor(hp.HEIGHT, hp.WIDTH)
+        self.img_processor = ImageProcessor(hp.HEIGHT,
+                                            hp.WIDTH,
+                                            normalize=hp.NORMALIZE)
         self.img_buffer = ImageHistory(hp.AGENT_HISTORY, (hp.HEIGHT, hp.WIDTH))
 
         self.logger = RLLogger(self.env_name, f"{hp.ALGO}_atari")

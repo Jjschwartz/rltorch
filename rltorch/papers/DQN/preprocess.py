@@ -18,9 +18,14 @@ from matplotlib.animation import FuncAnimation
 
 class ImageProcessor:
 
-    def __init__(self, resized_height, resized_width):
+    def __init__(self, resized_height,
+                 resized_width,
+                 normalize=False,
+                 max_value=255.0):
         self.resized_height = resized_height
         self.resized_width = resized_width
+        self.normalize = normalize
+        self.max_value = max_value
 
     def process_frames(self, f1, f2):
         # 1. take maximum pixel values over two frames
@@ -31,6 +36,8 @@ class ImageProcessor:
         # 3. convert image to grey scale
         img = img.convert(mode="L")
         x = np.asarray(img)
+        if self.normalize:
+            x = x / self.max_value
         return x
 
     def debug(self, f1, f2):
