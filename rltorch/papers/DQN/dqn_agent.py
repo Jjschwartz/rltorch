@@ -59,11 +59,8 @@ class DQNAgent:
         self.target_dqn = DQN(self.num_actions).to(self.device)
         print(self.dqn)
 
-        self.optimizer = optim.RMSprop(self.dqn.parameters(),
-                                       lr=hp.LEARNING_RATE,
-                                       momentum=hp.GRADIENT_MOMENTUM,
-                                       eps=hp.MIN_SQUARED_GRADIENT)
-
+        self.optimizer = hp.OPTIMIZER(self.dqn.parameters(),
+                                      **hp.OPTIMIZER_KWARGS)
         print(self.optimizer)
         self.loss_fn = nn.SmoothL1Loss()
 
