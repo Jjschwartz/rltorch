@@ -56,8 +56,8 @@ class DQNAgent:
         self.return_tracker = StatTracker()
 
         # Neural Network related attributes
-        self.dqn = DQN(self.num_actions).to(self.device)
-        self.target_dqn = DQN(self.num_actions).to(self.device)
+        self.dqn = hp.MODEL(self.num_actions).to(self.device)
+        self.target_dqn = hp.MODEL(self.num_actions).to(self.device)
         print(self.dqn)
 
         self.optimizer = optim.RMSprop(self.dqn.parameters(),

@@ -1,6 +1,8 @@
 """Hyperparameters from paper """
 import numpy as np
 
+from .model import DQN, DuelingDQN
+
 
 class AtariHyperparams:
 
@@ -66,6 +68,7 @@ class AtariHyperparams:
     LAYER_4 = {"type": "fully_connected",
                "size": 512, "activation": "relu"}
     OUTPUT = {"type": "fully_connected"}
+    MODEL = DQN
 
     # training duration (50 million)
     TRAINING_FRAMES = int(5e7)
@@ -110,6 +113,10 @@ class AtariHyperparams:
         elif mode == "dqn":
             print("Using DQN hyperparams")
             pass
+        elif mode == "duelingdqn":
+            print("Using Dueling DQN hyperparams")
+            cls.ALGO = "DuelingDQN"
+            cls.MODEL = DuelingDQN
         else:
             raise ValueError("Unsupported Hyper param mode")
 

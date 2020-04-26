@@ -38,3 +38,28 @@ class DQN(nn.Module):
     def get_action(self, x):
         with torch.no_grad():
             return self.forward(x).max(1)[1]
+
+
+class DuelingDQN(DQN):
+
+    def __init__(self, num_actions):
+        super().__init__(num_actions)
+        self.fc1, self.out = None, None
+        self.v_fc1 = nn.Linear(64*7*7, 512)
+        self.adv_fc1 = nn.Linear(64*7*7, 512)
+        self.v_out = nn.Linear(512, 1)
+        self.adv_out = nn.Linear(512, num_actions)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = x.view(x.size(0), -1)
+        v = F.relu(self.v_fc1(x))
+        v = self.v_out(v)
+        adv = F.relu(self.adv_fc1(x))
+        adv = self.adv_out(adv)
+
+        adv_avg = torch.mean(adv, dim=1, keepdim=True)
+        q_vals = v + adv - adv_avg
+        return q_vals

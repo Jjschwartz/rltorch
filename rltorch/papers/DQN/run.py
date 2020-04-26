@@ -1,5 +1,6 @@
 from rltorch.papers.DQN.dqn_agent import DQNAgent
 from rltorch.papers.DQN.ddqn_agent import DDQNAgent
+from rltorch.papers.DQN.duelingdqn_agent import DuelingDQNAgent
 from rltorch.papers.DQN.hyperparams import AtariHyperparams
 
 
@@ -23,6 +24,9 @@ if __name__ == "__main__":
     elif args.alg == "ddqn-tuned":
         AtariHyperparams.set_mode("ddqn-tuned", seed=args.seed)
         agent_cls = DDQNAgent
+    elif args.alg == "duelingdqn":
+        AtariHyperparams.set_mode("ddqn-tuned", seed=args.seed)
+        agent_cls = DuelingDQNAgent
     else:
         raise NotImplementedError("Algorithm not supported")
 
