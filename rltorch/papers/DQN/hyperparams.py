@@ -17,14 +17,12 @@ class AtariHyperparams:
     # Number of most recent frames given as input to Q-network
     AGENT_HISTORY = 4
     STATE_DIMS = (AGENT_HISTORY, WIDTH, HEIGHT)
-    NORMALIZE = True
+    NORMALIZE = False
 
     DISCOUNT = 0.99
     MINIBATCH_SIZE = 32
     REPLAY_SIZE = int(1e6)
     REPLAY_S_DTYPE = np.uint8
-    if NORMALIZE:
-        REPLAY_S_DTYPE = np.float16
     # Number of network updates between target network updates
     # TARGET_NETWORK_UPDATE_FREQ = 10000
     TARGET_NETWORK_UPDATE_FREQ = 2500
@@ -83,8 +81,11 @@ class AtariHyperparams:
     EVAL_EPSILON = 0.05
 
     @classmethod
-    def set_mode(cls, mode='dqn', seed=0):
+    def set_seed(cls, seed):
         cls.SEED = seed
+
+    @classmethod
+    def set_mode(cls, mode='dqn'):
         if mode == "testing":
             print("WARNING: using test hyperparams")
             input("Press any key to continue..")
@@ -117,6 +118,10 @@ class AtariHyperparams:
             print("Using Dueling DQN hyperparams")
             cls.ALGO = "DuelingDQN"
             cls.MODEL = DuelingDQN
+        elif mode == "normalized":
+            print("Using normalized observations")
+            cls.NORMALIZE = True
+            cls.REPLAY_S_DTYPE = np.float16
         else:
             raise ValueError("Unsupported Hyper param mode")
 
