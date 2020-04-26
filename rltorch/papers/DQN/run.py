@@ -26,7 +26,7 @@ if __name__ == "__main__":
         AtariHyperparams.set_mode("ddqn-tuned")
         agent_cls = DDQNAgent
     elif args.alg == "duelingdqn":
-        AtariHyperparams.set_mode("ddqn-tuned", seed=args.seed)
+        AtariHyperparams.set_mode("duelingdqn")
         agent_cls = DuelingDQNAgent
     else:
         raise NotImplementedError("Algorithm not supported")

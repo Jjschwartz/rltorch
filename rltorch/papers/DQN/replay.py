@@ -1,23 +1,20 @@
 import torch
 import numpy as np
 
-from rltorch.papers.DQN.hyperparams import AtariHyperparams as hp
-
 
 class ReplayMemory:
 
-    def __init__(self, capacity, history_len, width, height, device='cpu'):
+    def __init__(self, capacity, history_len, width, height, s_dtype,
+                 device='cpu'):
         self.capacity = capacity
         self.device = device
         self.h = history_len
         self.s_dims = (self.h, width, height)
         # store as float16 to save space, then we convert when sampling
-        self.s_buf = np.zeros((capacity, *self.s_dims),
-                              dtype=hp.REPLAY_S_DTYPE)
+        self.s_buf = np.zeros((capacity, *self.s_dims), dtype=s_dtype)
         self.a_buf = np.zeros((capacity, 1), dtype=np.long)
         next_s_dim = (capacity, 1, width, height)
-        self.next_s_buf = np.zeros(next_s_dim,
-                                   dtype=hp.REPLAY_S_DTYPE)
+        self.next_s_buf = np.zeros(next_s_dim, dtype=s_dtype)
         self.r_buf = np.zeros(capacity, dtype=np.float32)
         self.done_buf = np.zeros(capacity, dtype=np.float32)
         self.ptr, self.size = 0, 0

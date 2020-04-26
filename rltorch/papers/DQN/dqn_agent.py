@@ -10,11 +10,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from .model import DQN
 from .replay import ReplayMemory
+from .preprocess import ImageHistory
 from rltorch.utils.rl_logger import RLLogger
 from rltorch.utils.stat_utils import StatTracker
-from .preprocess import ImageProcessor, ImageHistory
 from rltorch.papers.DQN.hyperparams import AtariHyperparams as hp
 
 RENDER_PAUSE = 0.01
@@ -45,9 +44,9 @@ class DQNAgent:
                                    hp.AGENT_HISTORY,
                                    hp.WIDTH,
                                    hp.HEIGHT,
+                                   hp.REPLAY_S_DTYPE,
                                    self.device)
         self.replay.display_memory_usage()
-        self.img_processor = ImageProcessor(hp.HEIGHT, hp.WIDTH)
         self.img_buffer = ImageHistory(hp.AGENT_HISTORY, (hp.HEIGHT, hp.WIDTH))
 
         self.logger = RLLogger(self.env_name, f"{hp.ALGO}_atari")
@@ -209,7 +208,7 @@ class DQNAgent:
             else:
                 a = self.get_action(xs)
 
-            next_x, r, done = self.step(a)
+            next_x, r, done, _ = self.env.step(a)
             self.img_buffer.push(next_x)
             next_xs = self.img_buffer.get()
 
@@ -281,18 +280,12 @@ class DQNAgent:
         print("EVALUATION RESULTS:")
         self.eval_logger.flush(True)
 
-    def step(self, a):
-        """Perform a step, repeating given action ACTION_REPEAT times, and
-        return processed image and reward """
-        x, r, d, _ = self.env.step(a)
-        return x, r, d
-
     def init_episode(self):
         """Resets game, performs noops and returns first processed state """
         x = self.env.reset()
         self.img_buffer.push(x)
         # fill buffer
         for _ in range(hp.AGENT_HISTORY-1):
-            x, _, _ = self.step(0)
+            x, _, _, _ = self.env.step(0)
             self.img_buffer.push(x)
         return self.img_buffer.get()
