@@ -18,10 +18,6 @@ class DDQNAgent(DQNTargetAgent):
         batch = self.replay.sample_batch(self.batch_size)
         s_batch, a_batch, next_s_batch, r_batch, d_batch = batch
 
-        # get q_vals for each state and the action performed in that state
-        q_vals_raw = self.dqn(s_batch)
-        q_vals = q_vals_raw.gather(1, a_batch).squeeze()
-
         # get target q val = max val of next state
         with torch.no_grad():
             q_vals_next_s_raw = self.dqn(next_s_batch)
@@ -29,6 +25,10 @@ class DDQNAgent(DQNTargetAgent):
             target_q_val_raw = self.target_dqn(next_s_batch)
             target_q_val = target_q_val_raw.gather(1, max_a_next_s).squeeze()
             target = r_batch + self.discount*(1-d_batch)*target_q_val
+
+        # get q_vals for each state and the action performed in that state
+        q_vals_raw = self.dqn(s_batch)
+        q_vals = q_vals_raw.gather(1, a_batch).squeeze()
 
         # calculate loss
         loss = self.loss_fn(q_vals, target)

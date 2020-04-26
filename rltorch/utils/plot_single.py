@@ -26,7 +26,7 @@ if __name__ == "__main__":
     parser.add_argument("file_path", type=str)
     parser.add_argument("--x_key", type=str, default="episode")
     parser.add_argument("--y_key", type=str, default="episode_return")
-    parser.add_argument("--smooth", type=int, default=10)
+    parser.add_argument("--smooth", type=int, default=1)
     args = parser.parse_args()
 
     plot_xy(**vars(args))

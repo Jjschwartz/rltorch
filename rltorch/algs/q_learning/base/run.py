@@ -3,6 +3,13 @@ import argparse
 import rltorch.utils.rl_logger as rllog
 
 
+def get_target_deep_q_argparse():
+    parser = get_deep_q_argparse()
+    parser.add_argument("--target_update_freq", type=int, default=1000,
+                        help="(default=1000)")
+    return parser
+
+
 def get_deep_q_argparse():
     parser = get_base_argparse()
     parser.add_argument("--hidden_sizes", type=int, nargs="*",
