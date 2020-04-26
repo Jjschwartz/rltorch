@@ -1,5 +1,6 @@
 """Hyperparameters from paper """
 import numpy as np
+import torch.optim as optim
 
 from .model import DQN, DuelingDQN
 
@@ -32,11 +33,16 @@ class AtariHyperparams:
     NETWORK_UPDATE_FREQUENCY = 4
 
     # Parameters for network learning
-    OPTIMIZER = "RMS Prop"
+    OPTIMIZER = optim.RMSprop
     LEARNING_RATE = 0.00025
     GRADIENT_MOMENTUM = 0.95
     SQUARED_GRADIENT_MOMENTUM = 0.95
     MIN_SQUARED_GRADIENT = 0.01
+    OPTIMIZER_KWARGS = {
+        "lr": LEARNING_RATE,
+        "momentum": GRADIENT_MOMENTUM,
+        "eps": MIN_SQUARED_GRADIENT
+    }
     GRAD_CLIP = [-1, 1]
 
     # for reward
@@ -122,6 +128,17 @@ class AtariHyperparams:
             print("Using normalized observations")
             cls.NORMALIZE = True
             cls.REPLAY_S_DTYPE = np.float16
+        elif mode == "pong_tuned":
+            print("Using pong tuned hyperparams")
+            cls.REPLAY_SIZE = 100000
+            cls.REPLAY_START_SIZE = 10000
+            cls.INITIAL_EXPLORATION = 1.0
+            cls.FINAL_EXPLORATION = 0.02
+            cls.FINAL_EXPLORATION_FRAME = 100000
+            # this corresponds to updating every 1000 frames
+            cls.TARGET_NETWORK_UPDATE_FREQ = 250
+            cls.OPTIMIZER = optim.Adam
+            cls.OPTIMIZER_KWARGS = {"lr": 1e-4}
         else:
             raise ValueError("Unsupported Hyper param mode")
 
