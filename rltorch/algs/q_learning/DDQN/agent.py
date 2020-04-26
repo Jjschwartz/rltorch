@@ -42,8 +42,7 @@ class DDQNAgent(DQNTargetAgent):
         if self.updates_done % self.target_update_freq == 0:
             self.update_target_net()
 
-        q_vals_max = q_vals_raw.max(1)[0]
-        mean_v = q_vals_max.mean().item()
+        mean_v = q_vals_raw.max(1)[0].mean().item()
         max_v = q_vals.max().item()
         mean_td_error = (target - q_vals).abs().mean().item()
         return loss.item(), mean_v, max_v, mean_td_error
