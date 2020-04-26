@@ -7,7 +7,6 @@ from gym.envs.atari import AtariEnv
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 from .model import DQN
 from .replay import ReplayMemory
