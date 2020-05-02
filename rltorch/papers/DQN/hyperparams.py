@@ -26,7 +26,7 @@ class AtariHyperparams:
     REPLAY_S_DTYPE = np.uint8
     # Number of network updates between target network updates
     # TARGET_NETWORK_UPDATE_FREQ = 10000
-    TARGET_NETWORK_UPDATE_FREQ = 2500
+    TARGET_NETWORK_UPDATE_FREQ = 2500     # every 10000 frames
     # Number of times an action is repeated, i.e. number of frames skipped
     ACTION_REPEAT = 4
     # Num actions (ignoring repeats) performed before Gradient descent update
