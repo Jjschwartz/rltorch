@@ -78,7 +78,7 @@ def load_results(grouped_result_paths, x_key, y_keys, average, resample=512):
         group_results = []
         for i, fp in enumerate(rpaths):
             label = fp.split("_")[0]
-            if not average:
+            if not average and len(rpaths) > 1:
                 label += f"_{i}"
             df = pd.read_table(fp)
             x = df[x_key].to_numpy()
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     grouped_result_paths = []
     if args.fps is not None:
         args.fps = args.fps if isinstance(args.fps, list) else [args.fps]
-        grouped_result_paths.extend(args.fps)
+        grouped_result_paths.append(args.fps)
     elif args.dps is not None:
         args.dps = args.dps if isinstance(args.dps, list) else [args.dps]
         for dp in args.dps:

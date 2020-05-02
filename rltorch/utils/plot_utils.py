@@ -151,8 +151,15 @@ def plot_xy(ax, xs, ys, label=None):
     label : str, optional
        a label for the line (default=None)
     """
-    y_mean = np.mean(ys, axis=0)
-    y_std = np.std(ys, axis=0)
+    print(f"Plotting {label}")
+    try:
+        if len(ys[0]):
+            # list of lists
+            y_mean = np.mean(ys, axis=0)
+            y_std = np.std(ys, axis=0)
+    except Exception:
+        y_mean = ys
+        y_std = 0
 
     if len(xs) > 1:
         ax.plot(xs, y_mean, label=label)
