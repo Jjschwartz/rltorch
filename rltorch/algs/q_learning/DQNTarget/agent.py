@@ -53,5 +53,4 @@ class DQNTargetAgent(DQNAgent):
         return loss.item(), mean_v, max_v, mean_td_error
 
     def update_target_net(self):
-        print(f"step={self.steps_done} - update target net")
         self.target_dqn.load_state_dict(self.dqn.state_dict())
