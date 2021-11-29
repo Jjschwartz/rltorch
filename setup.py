@@ -14,7 +14,8 @@ setup(name="rltorch",
           'pyglet',
           'matplotlib',
           'prettytable',
-          'pyyaml'
+          'pyyaml',
+          'scipy'
       ],
       description="Deep RL algorithm implementations using pytorch.",
       author="Jonathon Schwartz",
